@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "type": "command",
+        "command": "node scripts/enforce-gamification.mjs",
+        "timeout": 5
+      }
+    ]
+  }
+}

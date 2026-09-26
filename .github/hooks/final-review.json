@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node scripts/final-review.mjs",
+        "timeout": 120
+      }
+    ]
+  }
+}
