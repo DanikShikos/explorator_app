@@ -2,14 +2,17 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { completeQuizAttempt, rateCard } from "@/app/actions/quiz";
+import { useRouter } from "next/navigation";
+import { clearReviewCards, completeQuizAttempt, rateCard } from "@/app/actions/quiz";
+import { answersMatch } from "@/lib/answers";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import type { QuizCard } from "@/db/schema";
 import type { RatingKey } from "@/lib/fsrs";
 
 export function ReviewSession({ cards }: { cards: QuizCard[] }) {
+  const router = useRouter();
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [openAnswer, setOpenAnswer] = useState("");
@@ -35,9 +38,24 @@ export function ReviewSession({ cards }: { cards: QuizCard[] }) {
               {reward.unlocked.map((achievement) => <p key={achievement.title} className="text-sm">Новое достижение: {achievement.title}</p>)}
             </div>
           ) : null}
-          <Button asChild>
-            <Link href="/">На панель</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild>
+              <Link href="/">На панель</Link>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => {
+                startTransition(async () => {
+                  await clearReviewCards();
+                  router.refresh();
+                });
+              }}
+            >
+              Очистить тесты
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
@@ -46,17 +64,13 @@ export function ReviewSession({ cards }: { cards: QuizCard[] }) {
   const card = cards[index];
   const options = card.options ?? [];
 
-  function normalizeAnswer(value: string) {
-    return value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
-  }
-
   function checkAnswer() {
     const userAnswer = card.type === "multiple_choice" ? selected : openAnswer;
     if (!userAnswer?.trim()) {
       return;
     }
 
-    setIsCorrect(normalizeAnswer(userAnswer) === normalizeAnswer(card.answer));
+    setIsCorrect(answersMatch(card.answer, userAnswer));
     setChecked(true);
   }
 
@@ -68,7 +82,7 @@ export function ReviewSession({ cards }: { cards: QuizCard[] }) {
       const nextCorrectAnswers = correctAnswers + (isCorrect ? 1 : 0);
       if (nextIndex >= cards.length) {
         const result = await completeQuizAttempt({
-          noteId: card.noteId,
+          noteId: card.noteId ?? undefined,
           totalQuestions: cards.length,
           correctAnswers: nextCorrectAnswers,
         });
@@ -90,10 +104,27 @@ export function ReviewSession({ cards }: { cards: QuizCard[] }) {
       <CardHeader>
         <CardDescription>
           Вопрос {index + 1} из {cards.length} ·{" "}
-          {card.type === "multiple_choice" ? "выбор варианта" : "открытый вопрос"}
+          {card.type === "multiple_choice" ? "выбор варианта" : "короткий ответ"}
         </CardDescription>
         <CardTitle className="text-xl leading-relaxed">{card.question}</CardTitle>
       </CardHeader>
+      <div className="px-6">
+        <Button
+          type="button"
+          variant="ghost"
+          className="h-8 px-2 text-muted-foreground"
+          disabled={pending}
+          onClick={() => {
+            startTransition(async () => {
+              await clearReviewCards();
+              setDone(true);
+              router.refresh();
+            });
+          }}
+        >
+          Очистить тесты
+        </Button>
+      </div>
       <CardContent className="space-y-4">
         {card.type === "multiple_choice" ? (
           <div className="grid gap-2">
@@ -111,10 +142,11 @@ export function ReviewSession({ cards }: { cards: QuizCard[] }) {
             ))}
           </div>
         ) : (
-          <Textarea
+          <Input
             value={openAnswer}
             onChange={(event) => setOpenAnswer(event.target.value)}
-            placeholder="Ваш ответ…"
+            placeholder="Одно–три слова"
+            maxLength={40}
             disabled={checked}
             className={checked ? (isCorrect ? "border-green-600 bg-green-50" : "border-red-600 bg-red-50") : ""}
           />

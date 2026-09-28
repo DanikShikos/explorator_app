@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Compass, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -8,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { DisplayControls } from "@/components/layout/display-controls";
 import { ClientNavLink } from "@/components/layout/client-nav-link";
+import type { AccountLabel } from "@/lib/auth-types";
 
-export function AppSidebar() {
+export function AppSidebar({ account }: { account?: AccountLabel | null }) {
   const pathname = usePathname();
 
   return (
@@ -47,6 +49,14 @@ export function AppSidebar() {
       <div className="border-t border-sidebar-border p-3">
         <DisplayControls />
       </div>
+      {account ? (
+        <div className="px-3 pb-1">
+          <Link href="/profile" className="block rounded-md px-3 py-2 hover:bg-accent">
+            <p className="truncate text-sm font-medium">{account.name}</p>
+            <p className="truncate text-xs text-muted-foreground">{account.email}</p>
+          </Link>
+        </div>
+      ) : null}
       <div className="p-3">
         <Button
           type="button"

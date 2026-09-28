@@ -3,6 +3,8 @@ import { getDb } from "@/db";
 import { removeNullBytes } from "@/lib/utils";
 import {
   achievements,
+  bookAchievementSeeds,
+  books,
   notes,
   quizAttempts,
   userAchievements,
@@ -130,14 +132,50 @@ export async function recordNoteCreated(userId: string) {
   }
 }
 
+async function ensureBookAchievements(tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0]) {
+  await tx
+    .insert(achievements)
+    .values(bookAchievementSeeds.map((item) => ({ ...item })))
+    .onConflictDoNothing({ target: achievements.code });
+}
+
+export async function recordBookUpload(userId: string, format: string) {
+  const cleanUserId = removeNullBytes(userId);
+  try {
+    return await getDb().transaction(async (tx) => {
+      await ensureBookAchievements(tx);
+      const [{ count }] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(books)
+        .where(eq(books.userId, cleanUserId));
+      const [{ fb2Count }] = await tx
+        .select({ fb2Count: sql<number>`count(*)::int` })
+        .from(books)
+        .where(and(eq(books.userId, cleanUserId), eq(books.format, "fb2")));
+      const codes = [
+        ...(count === 1 ? ["first_book_read"] : []),
+        ...(format === "fb2" && fb2Count >= 5 ? ["fb2_master"] : []),
+      ];
+      return applyActivity(tx, cleanUserId, 25, codes);
+    });
+  } catch (error) {
+    if (isMissingGamificationTable(error)) {
+      return { xpEarned: 0, level: 1, leveledUp: false, streakCount: 0, unlocked: [] };
+    }
+    throw error;
+  }
+}
+
 export async function recordQuizAttempt({
   userId,
   noteId,
+  quizId,
   totalQuestions,
   correctAnswers,
 }: {
   userId: string;
   noteId?: string;
+  quizId?: string;
   totalQuestions: number;
   correctAnswers: number;
 }) {
@@ -154,14 +192,16 @@ export async function recordQuizAttempt({
         .select({ count: sql<number>`count(*)::int` })
         .from(quizAttempts)
         .where(eq(quizAttempts.userId, cleanUserId));
+      await ensureBookAchievements(tx);
       const codes = [
         ...(count + 1 >= 5 ? ["quiz_master_5"] : []),
-        ...(score === 100 ? ["perfect_quiz"] : []),
+        ...(score === 100 ? ["perfect_quiz", "quiz_100_percent"] : []),
       ];
       const activity = await applyActivity(tx, cleanUserId, baseXp, codes);
       await tx.insert(quizAttempts).values({
         userId: cleanUserId,
         noteId: cleanNoteId,
+        quizId: quizId ? removeNullBytes(quizId) : null,
         score,
         totalQuestions: total,
         correctAnswers: correct,

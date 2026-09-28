@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   LayoutDashboard,
   NotebookPen,
   UserRound,
@@ -23,6 +24,13 @@ export const navItems: NavItem[] = [
     shortcut: "G D",
   },
   {
+    href: "/books",
+    label: "Книги",
+    description: "Библиотека, саммари и тесты",
+    icon: BookOpen,
+    shortcut: "G B",
+  },
+  {
     href: "/notes",
     label: "Заметки",
     description: "Markdown-заметки и генерация вопросов",
@@ -38,8 +46,8 @@ export const navItems: NavItem[] = [
   },
   {
     href: "/profile",
-    label: "Прогресс",
-    description: "XP, серия и достижения",
+    label: "Кабинет",
+    description: "Аккаунт, очки и достижения",
     icon: UserRound,
     shortcut: "G P",
   },

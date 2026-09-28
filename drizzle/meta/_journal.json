@@ -8,6 +8,20 @@
       "when": 1790187452495,
       "tag": "0000_lame_sebastian_shaw",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790619282256,
+      "tag": "0001_book_library",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790690000000,
+      "tag": "0002_hearts_learning_path",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,99 @@
+---
+description: Дизайн «книга → тропа → теория → закрепление» — UX, компоненты, контракты с кодом
+globs: "src/components/book/**/*,src/components/books/**/*,src/components/lesson/**/*,src/app/books/**/*"
+alwaysApply: false
+---
+
+# Дизайн: саммари книги как тропа обучения
+
+## Продуктовая модель
+
+1. **Загрузка** (`/books`, `UploadBookForm`) — книга в библиотеке.
+2. **Тропа** (`LearningPath` + `buildLearningPath`) — цепочка по главам: теория → спринт → пары → босс.
+3. **Теория** (`TheoryLesson` на `summary_read`) — карточки сути, без жизней.
+4. **Закрепление** (`LessonRunner`) — упражнения, жизни, XP.
+5. **Практика** (`/practice`) — восстановление жизней вне книги.
+
+**Главный сценарий:** пользователь **идёт по тропе**. `BookStudy` не на экране книги (опциональный справочник, только если Backend вернёт его).
+
+## Иерархия экрана книги (`/books/[id]`)
+
+Сверху вниз:
+
+| Блок | Компонент | Назначение |
+|------|-----------|------------|
+| Хлебные крошки | `page.tsx` | «Библиотека» |
+| Шапка + progress hero | `page.tsx` + `summarizePath` | title, % тропы, следующий шаг |
+| **Тропа** | `LearningPath` | узлы и старт урока |
+
+На странице в shell видны **жизни** (`HeartsIndicator`) — gate для упражнений, не для теории.
+
+## Типы узлов тропы (`PathNode.nodeType`)
+
+| `nodeType` | UI-лейбл | Смысл для пользователя |
+|------------|----------|-------------------------|
+| `summary_read` | Теория | карточки сути главы, без жизней (`TheoryLesson`) |
+| `quiz_sprint` | Спринт | быстрые вопросы |
+| `flashcard_review` | Пары | matching pairs |
+| `boss_challenge` | Босс | итог по главе |
+| `practice_review` | Практика | повтор |
+
+Статусы: `locked` (замок) · `available` (иконка типа + точка) · `completed` (Star) · `mastered` (Crown). Не только цветом.
+
+## Визуальный язык
+
+- Тропа: токены `--path`, `--path-soft`, `--path-ink`, `--path-foreground`, `--reward` в `globals.css`. Классы `bg-path`, `text-path-ink`. Не `emerald-*` / `amber-*` в новых правках.
+- Карточки и секции: `rounded-3xl` / `rounded-2xl border bg-card`, заголовки `text-2xl font-semibold text-path-ink`.
+- Пустые состояния: `BookCat` + абзац + одна кнопка `bg-path`.
+- Тропа: вертикальный зигзаг; теория — **прямоугольник**, практика — **круг**.
+
+## Иерархия `/books/[id]`
+
+Шапка (progress hero из `summarizePath`) → `LearningPath`. `BookStudy` не на этом экране: материалы — внутри узлов тропы.
+
+## Контракты данных (для бэкенд-агента)
+
+```tsx
+// LearningPath — src/components/book/LearningPath.tsx
+export type PathNode = {
+  id: string;
+  chapterTitle: string;
+  title: string;
+  description: string;
+  nodeType: string;
+  orderIndex: number;
+  xpReward: number;
+  status: "locked" | "available" | "completed" | "mastered";
+  score: number | null;
+};
+
+// LessonRunner — props из lesson page
+mode: "lesson" | "practice";
+bookId?: string;
+nodeId?: string;
+cards: { id: string; exercise: Exercise }[];
+```
+
+Server: `getLearningPath(bookId)`, `buildLearningPath` action, `generateLessonContentOnFly(nodeId)`.
+
+## Паттерны взаимодействия
+
+- **Выбор узла:** tap → панель деталей. Теория: «Читать теорию». Практика: «Начать урок» если `hearts >= 1`.
+- **Теория:** `TheoryLesson`, без сердец, «Понятно» → `completeLessonNode(..., 100)`.
+- **Урок:** прогресс-бар, сердца, звук, финиш → `/books/[id]`.
+- **Motion:** fade+y `duration ~0.2` в client.
+
+## Библиотека (`/books`)
+
+Карточка: format badge, bar `mastery%`, бейдж «На тропе» / «Разобрана» / «Новая». Весь card = link.
+
+## Очередь дизайна
+
+- Sticky-панель узла на всех ширинах (длинная тропа).
+- `listBooks().mastery` = % узлов тропы: Backend заявил формулу; стабильный `listBooks` всё ещё Backend.
+
+## Антипаттерны
+
+- Два равноправных потока (тропа + BookStudy) на `/books/[id]`.
+- `emerald-*` / `amber-*` вместо `--path` / `--reward`.
+- Client-компонент тянет `drizzle` / секреты.

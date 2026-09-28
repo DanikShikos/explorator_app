@@ -4,9 +4,17 @@ import { removeNullBytes } from "./utils";
 export const quizQuestionSchema = z.object({
   type: z.enum(["multiple_choice", "open_ended"]),
   question: z.string().min(1),
-  options: z.array(z.string()).min(2).max(6).nullable(),
-  answer: z.string().min(1),
+  options: z.array(z.string().max(80)).min(2).max(6).nullable(),
+  answer: z.string().min(1).max(40),
   explanation: z.string().nullable(),
+}).superRefine((question, context) => {
+  if (question.type === "open_ended" && question.answer.trim().split(/\s+/).length > 4) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["answer"],
+      message: "Открытый ответ должен быть не длиннее четырёх слов",
+    });
+  }
 });
 
 export const generatedQuizSchema = z.object({

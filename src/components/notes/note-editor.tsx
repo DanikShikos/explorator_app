@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { createNote, deleteNote, updateNote } from "@/app/actions/notes";
-import { generateQuestionsForNote } from "@/app/actions/quiz";
+import { clearNoteQuiz, generateQuestionsForNote } from "@/app/actions/quiz";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -58,12 +58,21 @@ export function NoteEditor({ mode, note, cardCount = 0 }: NoteEditorProps) {
           <p className="text-sm text-muted-foreground">
             Карточек для повторения по этой заметке: {cardCount}
           </p>
-          <form action={generateAction}>
-            <input type="hidden" name="noteId" value={note.id} />
-            <Button type="submit" variant="secondary" disabled={generating}>
-              {generating ? "Думаю…" : "Сгенерировать вопросы ИИ"}
-            </Button>
-          </form>
+          <div className="flex flex-wrap gap-2">
+            <form action={generateAction}>
+              <input type="hidden" name="noteId" value={note.id} />
+              <Button type="submit" variant="secondary" disabled={generating}>
+                {generating ? "Думаю…" : "Сгенерировать вопросы ИИ"}
+              </Button>
+            </form>
+            {cardCount > 0 ? (
+              <form action={clearNoteQuiz.bind(null, note.id)}>
+                <Button type="submit" variant="outline">
+                  Очистить тесты
+                </Button>
+              </form>
+            ) : null}
+          </div>
           {generateState?.message ? (
             <p className="text-sm text-muted-foreground">{generateState.message}</p>
           ) : null}
