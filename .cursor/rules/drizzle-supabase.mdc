@@ -1,0 +1,53 @@
+---
+description: Стандарты схемы Drizzle ORM и политик Supabase RLS
+globs: "src/db/**/*.{ts,tsx},drizzle/**/*.{sql,ts},src/lib/data.ts,src/app/actions/**/*.ts"
+alwaysApply: false
+---
+
+# Drizzle + Supabase
+
+## Схема
+
+- Единый источник правды: `src/db/schema.ts`
+- SQL-миграции / init: `drizzle/`; конфиг: `drizzle.config.ts`
+- PK: `uuid` + `defaultRandom()`; владельцы: `userId: uuid("user_id").notNull()`
+- Временные метки: `timestamp(..., { withTimezone: true }).defaultNow().notNull()`
+- FK с `onDelete: "cascade"` для дочерних сущностей (карточки → заметка/книга)
+- Индексы по `(userId)` и `(userId, due)` / `(userId, updatedAt)` для частых запросов
+- FSRS-поля карточек хранить как числа/даты, совместимые с `ts-fsrs` (`state` как integer)
+
+## Клиент БД
+
+- Подключение только через `getDb()` в `src/db/index.ts` (lazy, ssl для Supabase)
+- Не создавать новый `postgres()` на каждый запрос вне кэша модуля
+- Секреты только из `DATABASE_URL` в `.env.local` — никогда в клиентский бандл
+
+## Запросы
+
+- Все выборки фильтровать по `userId` текущего пользователя (`getCurrentUserId()` / Auth)
+- Использовать `eq` / `and` / `lte` из `drizzle-orm`, не сырой SQL без нужды
+- После мутаций: `revalidatePath` для затронутых маршрутов
+
+## Supabase RLS
+
+- В SQL включать RLS: `alter table ... enable row level security`
+- Политики owner-only:
+
+```sql
+create policy "notes_owner" on "notes"
+  for all using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+```
+
+- То же для `quiz_cards`, `review_logs` и любых новых user-owned таблиц
+- Серверный код с `DATABASE_URL` (service role / postgres) обходит RLS — фильтр по `userId` обязателен в приложении
+
+## Антипаттерны
+
+```ts
+// ❌ Выборка без userId
+await db.select().from(notes);
+
+// ✅
+await db.select().from(notes).where(eq(notes.userId, userId));
+```

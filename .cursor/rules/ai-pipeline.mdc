@@ -1,0 +1,52 @@
+---
+description: Правила Vercel AI SDK, generateObject и Zod-схем для викторин
+globs: "src/app/api/**/*.ts,src/app/actions/quiz.ts,src/lib/quiz-schema.ts,src/lib/**/*schema*.ts"
+alwaysApply: false
+---
+
+# AI Pipeline — Vercel AI SDK + Zod
+
+## Где живёт ИИ
+
+- Генерация только на сервере: Server Action или `src/app/api/**/route.ts`
+- Провайдер: `@ai-sdk/openai` + `generateObject` из `ai`
+- Ключ: `OPENAI_API_KEY` в `.env.local`; без ключа — явная ошибка 501 / `{ ok: false }`
+
+## Zod-схемы
+
+- Схемы вывода — в `src/lib/*-schema.ts` (например `quiz-schema.ts`)
+- `generateObject({ model, schema, prompt })` — schema обязательна
+- После генерации санитизировать текст (null bytes и т.п.) перед записью в БД
+- Экспортировать `z.infer<typeof schema>` для типов
+
+```ts
+export const quizQuestionSchema = z.object({
+  type: z.enum(["multiple_choice", "open_ended"]),
+  question: z.string().min(1),
+  options: z.array(z.string()).min(2).max(6).nullable(),
+  answer: z.string().min(1),
+  explanation: z.string().nullable(),
+});
+```
+
+## Промпты
+
+- Язык ответа = язык исходного текста
+- Для MCQ: `answer` должен совпадать с одним из `options`
+- Ограничивать число вопросов (например 1–12) схемой Zod
+
+## После генерации
+
+- Сохранять карточки через Drizzle с начальным FSRS-состоянием (`createEmptyCard` / `newFsrsCard`)
+- Не стримить сырой JSON в UI без валидации Zod
+- Не логировать содержимое промптов с PII в продакшене
+
+## Антипаттерны
+
+```ts
+// ❌ Свободный текст без схемы
+await generateText({ prompt: "сделай вопросы" });
+
+// ✅ Структурированный вывод
+await generateObject({ model: openai("gpt-4o-mini"), schema: generatedQuizSchema, prompt });
+```

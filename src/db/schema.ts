@@ -20,7 +20,49 @@ export const questionTypeEnum = pgEnum("question_type", [
   "multiple_choice",
   "open_ended",
 ]);
+export const books = pgTable(
+  "books",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull(),
+    title: text("title").notNull(),
+    author: text("author"),
+    format: text("format"),
+    coverUrl: text("cover_url"),
+    fileUrl: text("file_url"),
+    rawText: text("raw_text"),
+    overallSummary: text("overall_summary"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("books_user_id_idx").on(table.userId),
+    index("books_user_updated_idx").on(table.userId, table.updatedAt),
+  ]
+);
+export const bookChapters = pgTable(
+  "book_chapters",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    bookId: uuid("book_id").references(() => books.id, { onDelete: "cascade" }).notNull(),
+    title: text("title"),
+    content: text("content"),
+    contentSummary: text("content_summary").default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("book_chapters_book_idx").on(table.bookId)]
+);
 
+export const quizzes = pgTable(
+  "quizzes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    bookId: uuid("book_id").references(() => books.id, { onDelete: "cascade" }).notNull(),
+    title: text("title").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("quizzes_book_idx").on(table.bookId)]
+);
 /**
  * Markdown notes owned by a Supabase Auth user (`auth.users.id`).
  */
@@ -157,6 +199,7 @@ export const quizAttempts = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     userId: uuid("user_id").notNull(),
     noteId: uuid("note_id").references(() => notes.id, { onDelete: "set null" }),
+    quizId: uuid("quiz_id").references(() => quizzes.id, { onDelete: "cascade" }), // Добавьте это поле
     score: integer("score").notNull(),
     totalQuestions: integer("total_questions").notNull(),
     correctAnswers: integer("correct_answers").notNull(),
@@ -166,6 +209,7 @@ export const quizAttempts = pgTable(
   (table) => [
     index("quiz_attempts_user_created_idx").on(table.userId, table.createdAt),
     index("quiz_attempts_note_idx").on(table.noteId),
+    index("quiz_attempts_quiz_idx").on(table.quizId), // Добавьте индекс
   ],
 );
 
