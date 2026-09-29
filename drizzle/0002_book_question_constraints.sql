@@ -1,0 +1,2 @@
+ALTER TABLE "quiz_questions" ADD CONSTRAINT "quiz_questions_four_options_check" CHECK (jsonb_array_length("quiz_questions"."options") = 4);--> statement-breakpoint
+ALTER TABLE "quiz_questions" ADD CONSTRAINT "quiz_questions_correct_index_check" CHECK ("quiz_questions"."correct_answer_index" >= 0 AND "quiz_questions"."correct_answer_index" < 4);

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "quiz_attempts_user_quiz_unique" ON "quiz_attempts" USING btree ("user_id","quiz_id") WHERE "quiz_attempts"."quiz_id" is not null;

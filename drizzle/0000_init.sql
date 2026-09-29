@@ -57,13 +57,13 @@ alter table "quiz_cards" enable row level security;
 alter table "review_logs" enable row level security;
 
 create policy "notes_owner" on "notes"
-  for all using (auth.uid() = user_id or user_id = '00000000-0000-4000-8000-000000000001')
-  with check (auth.uid() = user_id or user_id = '00000000-0000-4000-8000-000000000001');
+  for all using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 create policy "quiz_cards_owner" on "quiz_cards"
-  for all using (auth.uid() = user_id or user_id = '00000000-0000-4000-8000-000000000001')
-  with check (auth.uid() = user_id or user_id = '00000000-0000-4000-8000-000000000001');
+  for all using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 create policy "review_logs_owner" on "review_logs"
-  for all using (auth.uid() = user_id or user_id = '00000000-0000-4000-8000-000000000001')
-  with check (auth.uid() = user_id or user_id = '00000000-0000-4000-8000-000000000001');
+  for all using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);

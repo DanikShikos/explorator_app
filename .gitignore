@@ -36,9 +36,12 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# drizzle
-drizzle/*.sql
-!drizzle/0000_init.sql
+# SQL migrations stay in git so CI can reject DROP TABLE / DROP SCHEMA / TRUNCATE.
+# Do not ignore drizzle/*.sql.
 
 .npm-cache/
 /supabase/.temp/
+
+# MCP with DB credentials
+.cursor/mcp.json
+
