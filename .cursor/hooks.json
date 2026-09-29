@@ -18,6 +18,11 @@
         "command": "node .cursor/hooks/remind-design-contract.js",
         "timeout": 5,
         "matcher": "Write|StrReplace|Read|EditNotebook"
+      },
+      {
+        "command": "node .cursor/hooks/analyst-watch.js",
+        "timeout": 5,
+        "matcher": "Write|StrReplace"
       }
     ],
     "stop": [

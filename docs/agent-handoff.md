@@ -3,6 +3,8 @@
 Общий канал между **Design** и **Backend/Full-stack**. Перед крупными изменениями обновляй свою секцию и смотри чужую.
 
 **Пока работа идёт, сначала живые столы (не этот файл):**
+- Developer пишет задачи аналитику: [`docs/developer-desk.md`](developer-desk.md)
+- Аналитик спрашивает и раскладывает: [`docs/analyst-desk.md`](analyst-desk.md)
 - Design пишет: [`docs/design-desk.md`](design-desk.md)
 - Backend пишет: [`docs/backend-desk.md`](backend-desk.md)
 
@@ -30,7 +32,7 @@
 | Progress hero | ✅ | `summarizePath` из существующих узлов |
 | Шапка главы/тропа | ✅ UX | partial path → `N из M глав на тропе`; full cover → короткий copy |
 | Библиотека `/books` | ✅ UX | бейджи Новая / Разобрана / На тропе; бар = `mastery`; throw → PathNotice + retry |
-| mastery формула | 🟡 | QA: 3% = 1/32, совпало. Unlock следующего узла — **Backend** |
+| mastery формула | ✅ | QA было 1/32; после спринта 2/104, пары available |
 
 ### Контракт UI (не ломать без согласования)
 
@@ -56,14 +58,14 @@ export type PathNode = {
 ### Очередь Design
 
 1. Не трогать data/schema/actions/AI/hearts-store.
-2. Цель Cursor не закрываю, пока нет e2e unlock.
+2. Цель Cursor: unlock проверен Backend. Можно закрывать со своей стороны, если шапка и тропа совпадают.
 
 ### Blockers для Design
 
-- **Backend:** complete sprint → next node available; hearts −1 on miss. Design не жал «Проверить» / `completeLessonNode`.
-- **Backend:** real book title/author (не «PDF, 209 стр.»).
-- **Backend:** path coverage of all chapters OR document 8-chapter cap in backend-desk. UI now shows `N из M глав на тропе`.
-- **Backend:** `listBooks` must stay 200. В этой сессии 200; если снова 500 — ваш слой.
+- Unlock спринт → пары и −1 сердце — **закрыто Backend** (пары available, жизни 3/5).
+- Заголовок «PDF, 209 стр.» — **закрыто**: живая книга теперь с названием и автором из парсера.
+- Покрытие глав — **закрыто**: лимита 8 нет, 26 глав = 104 узла.
+- Если `listBooks` снова 500 — pool/schema Backend, не Design.
 - Progress hero считается из `PathNode[]` (`summarizePath`). PathNode frozen.
 
 ---
@@ -74,15 +76,14 @@ export type PathNode = {
 
 | Область | Статус | Примечание |
 |---------|--------|------------|
-| Парсеры fb2/epub/pdf/txt | 🟡 | `src/lib/parsers/` |
-| `generateBookMaterials` | 🟡 | справочник; **не** на `/books/[id]` |
-| `buildLearningPath` | ✅ | без `overallSummary`; цепочка 4 узла/глава |
+| `buildLearningPath` | ✅ | без `overallSummary`; **все** главы, 4 узла, без дублей |
 | `getLearningPath` | ✅ | `PathNode[]` + статусы пользователя |
 | `listBooks().mastery` | ✅ | path %; soft-fallback при pool errors |
 | `generateLessonContentOnFly` | ✅ | TheoryLesson + упражнения |
 | `getDb` pool | ✅ | `globalThis` singleton — фикс EMAXCONNSESSION |
-| Hearts | ✅ | max 5, −1 ошибка, +1 / 4ч или practice |
-| Matching / Sequence | ✅ | pointer drag; Theory «Понятно» без hearts |
+| Hearts | ✅ | QA: ошибка в спринте 4→3 |
+| Matching / Sequence | ✅ | pointer drag; спринт → пары `available` |
+| Парсеры fb2/epub/pdf/txt | ✅ | PDF: название и автор из метаданных / биб. строки |
 | FSRS / review | отдельный поток | `/review`, notes |
 
 ### Контракт API / data layer
@@ -98,8 +99,8 @@ export type PathNode = {
 
 ### Очередь Backend
 
-1. ~~listBooks crash / mastery / path chain / pool~~ — сделано (проверено в браузере).
-2. По желанию: меньше AI-латентности при генерации упражнений.
+1. ~~listBooks crash / mastery / path chain / pool~~ — сделано.
+2. ~~Спринт → пары, −1 сердце, PDF-заголовок, тропа на все главы~~ — проверено в браузере (104 шага, пары available, жизни 3/5).
 
 ### Blockers для Backend
 
@@ -140,11 +141,14 @@ export type PathNode = {
 | 2026-09-28 ~23:35 | Backend | E2E fix: getDb singleton, mastery path %, chain/statuses, sequence drag; browser: `/books` 200 (3%), тропа 32 шага, спринт LessonRunner |
 | 2026-09-28 ~23:50 | Design | QA `/books` 200: бар 3%=1/32, Crown/locked/TheoryLesson/LessonRunner. UX: «К тропе», sticky opaque + 16rem padding. PathNode frozen. Цель не закрыта: unlock-loop — Backend |
 | 2026-09-28 ~23:55 | Design | Шапка: `N из M глав на тропе` если path не покрывает все главы; PathNode frozen; цель не закрыта |
+| 2026-09-28 ~23:45 | Backend | Спринт пройден → пары available; ошибка 4→3 жизни. PDF-заголовок и автор. Тропа на все главы (104), дубли узлов убраны. PathNode frozen |
+| 2026-09-29 19:32 | Аналитик | Канал Developer ↔ аналитик: `developer-desk.md`, `analyst-desk.md`. Задачи Design/Backend — секции на столе аналитика. Контракт не менялся |
+| 2026-09-29 19:40 | Аналитик | Доски задач: `.cursor/tasks/backend-tasks.md`, `.cursor/tasks/frontend-tasks.md`. Очереди пустые, пока Developer не поставит задачу. Контракт не менялся |
 
 ---
 
 ## Как пользоваться
 
-1. Перед сессией: прочитай обе секции Status + Blockers.
+1. Перед сессией: Developer и аналитик читают `developer-desk` и `analyst-desk`. Design и Backend — свои столы и секции «Для Design» / «Для Backend».
 2. После сессии: обнови свою таблицу статуса и строку в журнале.
 3. Меняешь `PathNode` или props `LessonRunner` → сначала правка в **Design → Контракт UI** и согласование в журнале.

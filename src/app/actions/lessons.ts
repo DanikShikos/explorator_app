@@ -1,13 +1,15 @@
 "use server";
 
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/db";
-import { bookChapters, books, lessonNodes, quizCards, userNodeProgress, usersStats } from "@/db/schema";
+import { bookChapters, books, lessonNodes, quizCards, reviewLogs, userNodeProgress, usersStats } from "@/db/schema";
 import { ensureFullLearningPath } from "@/lib/ai/book-processor";
-import { earnHeartFromPractice } from "@/lib/hearts-store";
+import { decrementHeartForMiss, earnHeartFromPractice, type HeartChargeResult } from "@/lib/hearts-store";
 import { getCurrentUserId } from "@/lib/current-user";
+import { ratingLabels, scheduleReview, toFsrsCard } from "@/lib/fsrs";
 import { levelForXp } from "@/lib/gamification";
+import { removeNullBytes } from "@/lib/utils";
 
 export async function buildLearningPath(bookId: string) {
   const result = await ensureFullLearningPath(bookId);
@@ -19,13 +21,88 @@ export async function buildLearningPath(bookId: string) {
   return result;
 }
 
+/**
+ * BE-002: schedule a lesson quiz_card after an answer.
+ * correct true → Rating.Good; false → Rating.Again (same as rateCard / scheduleReview).
+ * Does not touch user_node_progress / completeLessonNode unlock.
+ */
+export async function recordLessonAnswer(
+  cardId: string,
+  correct: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const cleanCardId = removeNullBytes(cardId);
+  try {
+    const userId = await getCurrentUserId();
+    const [card] = await getDb()
+      .select()
+      .from(quizCards)
+      .where(and(eq(quizCards.id, cleanCardId), eq(quizCards.userId, userId)))
+      .limit(1);
+
+    if (!card) {
+      return { ok: false, error: "Карточка не найдена" };
+    }
+
+    const now = new Date();
+    const rating = correct ? ratingLabels.good : ratingLabels.again;
+    const result = scheduleReview(toFsrsCard(card), rating, now);
+    const next = result.card;
+
+    await getDb()
+      .update(quizCards)
+      .set({
+        due: next.due,
+        stability: next.stability,
+        difficulty: next.difficulty,
+        elapsedDays: next.elapsed_days,
+        scheduledDays: next.scheduled_days,
+        reps: next.reps,
+        lapses: next.lapses,
+        state: next.state,
+        lastReview: next.last_review ?? now,
+      })
+      .where(eq(quizCards.id, cleanCardId));
+
+    await getDb().insert(reviewLogs).values({
+      cardId: cleanCardId,
+      userId,
+      rating,
+      state: next.state,
+      reviewedAt: now,
+    });
+
+    revalidatePath("/");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Не удалось сохранить ответ" };
+  }
+}
+
+/** Thin wrapper → recordLessonAnswer(id, false). Hearts unchanged. */
 export async function registerMiss(cardId: string) {
-  const userId = await getCurrentUserId();
-  await getDb()
-    .update(quizCards)
-    .set({ lapses: sql`${quizCards.lapses} + 1` })
-    .where(and(eq(quizCards.id, cardId), eq(quizCards.userId, userId)));
-  return { ok: true as const };
+  return recordLessonAnswer(cardId, false);
+}
+
+/** Thin wrapper → recordLessonAnswer(id, true). */
+export async function registerCorrect(cardId: string) {
+  return recordLessonAnswer(cardId, true);
+}
+
+export type ApplyLessonMissResult = HeartChargeResult;
+
+/**
+ * BE-005 / RFC-003: lesson miss in one call.
+ * Always writes FSRS Again; spends a heart only on first-pass nodes.
+ *
+ * charged true  — heart was decremented (−1)
+ * charged false — due (no nodeId) or completed/mastered replay; only due/FSRS moved
+ */
+export async function applyLessonMiss(cardId: string): Promise<ApplyLessonMissResult> {
+  const scheduled = await recordLessonAnswer(cardId, false);
+  if (!scheduled.ok) {
+    return scheduled;
+  }
+  return decrementHeartForMiss(cardId);
 }
 
 export async function completeLessonNode(nodeId: string, score: number) {

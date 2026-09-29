@@ -17,6 +17,7 @@ export function TheoryLesson({
   bookId,
   nodeId,
   xpReward,
+  hasPracticeAhead = true,
 }: {
   title: string;
   chapterTitle: string;
@@ -24,6 +25,8 @@ export function TheoryLesson({
   bookId: string;
   nodeId: string;
   xpReward: number;
+  /** False for thin/theory-only chapters — no practice CTA after complete. */
+  hasPracticeAhead?: boolean;
 }) {
   const router = useRouter();
   const [done, setDone] = useState(false);
@@ -49,6 +52,7 @@ export function TheoryLesson({
         <Button
           className="h-12 rounded-2xl bg-path px-6 text-base font-semibold text-path-foreground hover:bg-path/90"
           type="button"
+          data-testid="back-to-path-button"
           onClick={() => router.push(`/books/${bookId}`)}
         >
           К тропе
@@ -88,12 +92,22 @@ export function TheoryLesson({
       </div>
 
       {done ? (
-        <div className="rounded-3xl border bg-path-soft p-5 text-center">
-          <p className="text-lg font-semibold text-path-ink">Отлично! Теория засчитана</p>
-          <p className="mt-1 text-sm text-muted-foreground">+{xpReward} очков. Дальше — практика на тропе.</p>
+        <div
+          className="rounded-3xl border bg-path-soft p-5 text-center"
+          data-testid="theory-complete-message"
+        >
+          <p className="text-lg font-semibold text-path-ink">
+            {hasPracticeAhead ? "Отлично! Теория засчитана" : "Готово"}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {hasPracticeAhead
+              ? `+${xpReward} очков. Дальше — практика на тропе.`
+              : `+${xpReward} очков. Вернись на тропу.`}
+          </p>
           <Button
             className="mt-4 h-12 rounded-2xl bg-path px-6 font-semibold text-path-foreground hover:bg-path/90"
             type="button"
+            data-testid="back-to-path-button"
             onClick={() => router.push(`/books/${bookId}`)}
           >
             К тропе
@@ -103,6 +117,7 @@ export function TheoryLesson({
         <Button
           className="h-12 w-full rounded-2xl bg-path text-base font-semibold text-path-foreground hover:bg-path/90"
           type="button"
+          data-testid="got-it-button"
           disabled={pending || cards.length === 0}
           onClick={finish}
         >

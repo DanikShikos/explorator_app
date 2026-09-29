@@ -30,12 +30,13 @@ export function HeartsIndicator({ hearts, maxHearts, nextHeartAt }: HeartStatus)
   }, [countdown, router]);
 
   return (
-    <div className="relative">
+    <div className="relative" data-testid="hearts-indicator">
       <button
         type="button"
         className="flex items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-sm font-semibold"
         onClick={() => setOpen((value) => !value)}
         aria-label={`Жизни: ${hearts} из ${maxHearts}`}
+        data-testid="hearts-indicator-button"
       >
         <Heart className="size-4 fill-rose-500 text-rose-500" />
         {hearts}

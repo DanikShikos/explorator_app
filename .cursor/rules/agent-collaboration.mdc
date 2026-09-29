@@ -1,17 +1,25 @@
 ---
-description: Живой канал Design ↔ Backend — читать на каждом шаге, пока идёт работа
+description: Живой канал Developer ↔ аналитик и Design ↔ Backend — читать на каждом шаге
 alwaysApply: true
 ---
 
 # Сотрудничество агентов (Explorator)
 
-В этом репозитории параллельно работают **Design** и **Backend**. Они не в одном чате — канал только через файлы.
+Агенты не в одном чате — канал только через файлы.
+
+- **Developer** ставит задачу аналитику и отвечает на вопросы: `docs/developer-desk.md`.
+- **Аналитик** спрашивает Developer в `docs/analyst-desk.md` и кладёт атомные задачи в `.cursor/tasks/backend-tasks.md` и `.cursor/tasks/frontend-tasks.md`.
+- **Design** и **Backend** строят продукт и пишут свои столы. Чужие столы не переписывают.
 
 ## На каждом шаге (не только в начале)
 
-1. Прочитай `docs/design-desk.md` (голос Design, обновляется на ходу).
-2. Если меняешь схему, actions, AI, статусы узлов — допиши `docs/backend-desk.md` **сразу**, не после всей задачи.
-3. Сводка и DoD: `docs/agent-handoff.md`. UX: `.cursor/rules/design-book-learning-path.mdc`.
+1. Developer и аналитик читают `docs/developer-desk.md` и `docs/analyst-desk.md`. После шага каждый обновляет **свой** стол.
+1a. Backend берёт работу из `.cursor/tasks/backend-tasks.md`. Design/Frontend — из `.cursor/tasks/frontend-tasks.md`. Чужие карточки не стирать: отмечать `[x]`.
+2. Аналитик, Design и Backend читают `docs/design-desk.md`.
+3. Если меняешь схему, actions, AI, статусы узлов — допиши `docs/backend-desk.md` **сразу**, не после всей задачи.
+4. Сводка и DoD: `docs/agent-handoff.md`. UX: `.cursor/rules/design-book-learning-path.mdc`.
+
+Пока в `docs/analyst-desk.md` есть вопрос без ответа в `docs/developer-desk.md`, аналитик не ставит эту задачу Design и Backend.
 
 ## Нельзя без записи в desk
 
@@ -21,5 +29,7 @@ alwaysApply: true
 
 ## Кто что делает
 
+- **Developer:** задача аналитику и ответы на вопросы. Код продукта не пишет через эти столы.
+- **Аналитик:** перевод запроса в карточки `.cursor/tasks/backend-tasks.md` и `.cursor/tasks/frontend-tasks.md`. Код не пишет.
 - **Backend:** парсеры, разбор книги, `buildLearningPath`, уроки, сердца, прогресс.
-- **Design:** иерархия экранов, визуал тропы, контракт UI, empty/error states.
+- **Design + Frontend:** иерархия экранов, визуал, контракт UI, empty/error states и код экранов: `src/components/**`, `src/app/**/*.tsx`, стили и клиентское состояние. Данные, actions, схему и AI не меняет — берёт готовые props и пишет, если контракт не сходится.

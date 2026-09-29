@@ -2,34 +2,79 @@
 
 **Кто:** второй агент (логика, БД, AI). Пиши сюда **во время работы**, не в конце сессии. Design читает этот файл.
 
-Обновлено: 2026-09-28 23:35 UTC+3
+Обновлено: 2026-09-29 (fix pass)
+
+## Цель
+
+Доработка приложения. Активна. Слежу только за своими файлами:
+
+- `docs/backend-desk.md`
+- `.cursor/tasks/backend-tasks.md` (карточки ставит аналитик, я отмечаю `[x]`)
+- `src/db/schema.ts`, `drizzle/`
+- `src/lib/actions/hearts.ts`, `src/lib/hearts-store.ts`, `src/lib/hearts.ts`
+- `src/lib/ai/book-processor.ts`, `src/lib/exercises.ts`
+- `src/app/actions/` (`lessons.ts`, `books.ts`, `book-study.ts`, `quiz.ts`, `auth.ts`, `notes.ts`, `gamification.ts`)
+- `src/lib/data.ts`, `src/lib/parsers/`
+
+Чужие доски и `frontend-tasks` только читаю. `PathNode` и props `LessonRunner` не меняю без записи здесь.
+
+## Аналитик → Backend
+
+**BE-005** (RFC-003) → **`[x] Ready for QA`**. Очередь открытых пуста. RFC-004 вне очереди.
 
 ## Сейчас делаю
 
-Готово end-to-end «чтобы работало». Можно опираться на живой поток ниже.
+**2026-09-29 ~21:05 UTC+3.** Re-read: no open Backend bugs or To Do cards.
 
 ## Изменил контракт / API
 
-- `PathNode` / LessonRunner props — **без изменений** (frozen).
-- `listBooks().mastery` = `round(100 * (completed+mastered) / total)` path nodes, user-scoped; нет узлов → 0. Форма `{ book, mastery, chapters, minutes }`.
-- `buildLearningPath` **не** требует `overallSummary`.
-- Цепочка главы: `summary_read` → `quiz_sprint` → `flashcard_review` → `boss_challenge` (без `practice_review` в главе).
-- Статусы: первый available после clear предыдущей главы; complete → unlock next; score≥100 → mastered; replay без double XP.
-- `getDb`: singleton на `globalThis` (фикс EMAXCONNSESSION).
-- Sequence: pointer-drag reorder + tap add/remove (`SequenceOrderBoard`). Matching pairs уже drag+highlight.
-- Hearts: max 5, −1 на ошибку, 0 пауза, +1 / 4ч или practice; покупки за XP нет.
+### BE-005 / RFC-003 · сердца только на первом проходе — `[x] Ready for QA`
 
-## Crash `/books`
+**PathNode / props `LessonRunner` — без изменений.**
 
-Cause был **EMAXCONNSESSION** (pool 15), не missing column. После singleton + soft fallback: `/books` 200, mastery 3% на живой книге.
+```ts
+// hearts-store / actions/hearts
+decrementHeartForMiss(cardId) // alias: decrementHeartOnLessonMiss
+→ ({ ok: true; charged: boolean } & HeartStatus) | { ok: false; error }
 
-## Блокеры для Design
+// lessons.ts
+applyLessonMiss(cardId) // recordLessonAnswer(Again) + decrementHeartForMiss
+```
 
-- нет.
+Правило `charged`:
+1. Нет карточки / чужой → `{ ok: false }`, сердца не трогаем.
+2. Нет `nodeId` → `charged: false` (due).
+3. Progress `completed` | `mastered` → `charged: false`.
+4. Иначе (первый проход) → `decrementHeart`, `charged: true`.
+
+Чистая функция решения: `shouldChargeHeartOnMiss(nodeId, progressStatus)` в `src/lib/hearts.ts` — её зовёт `decrementHeartForMiss`.
+
+**LessonRunner:** miss с `nodeId` → `applyLessonMiss`; анимация / OutOfHearts только если `charged`. Due (`!nodeId`) — только `recordLessonAnswer`, без hearts action.
+
+**Страница урока:** `nodeStatus` из `generateLessonContentOnFly`; OutOfHearts gate только если не completed/mastered.
+
+Theory / practice — без регрессии.
+
+**2026-09-29 fix pass:** BE-005 DoD confirmed; predicate extracted + vitest charge table; PathNode/props still frozen.
+
+### Ранее
+
+- BE-001…BE-004 — Ready for QA (см. backend-tasks).
+
+## Проверено
+
+**2026-09-29 fix pass:**
+
+- BUG-001 closed via `applyLessonMiss` + `shouldChargeHeartOnMiss`; no open Backend bugs.
+- BE-005 remains Ready for QA (not Verified).
+- Vitest: `hearts` / `hearts-charge` / `learning-path` / `fsrs` — 4 files, 18 passed.
+- Dev-сервер не оставляю.
+
+## Блокеры для Design / FE-005
+
+- Props `LessonRunner` frozen. Смотрите `charged` из `applyLessonMiss` / `decrementHeartForMiss` (уже в LessonRunner).
 
 ## Можно собирать UI на
 
-- `/books` mastery bar = path %.
-- `/books/[id]` = header + LearningPath (+ BookCat); BookStudy не на странице.
-- TheoryLesson / LessonRunner / drag pairs & sequence — рабочие.
-- `buildLearningPath` без саммари книги.
+- `applyLessonMiss(cardId)` / `decrementHeartForMiss(cardId)` → `charged`
+- `getTodayPanel()` / `listBookDueCards()` / `recordLessonAnswer`

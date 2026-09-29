@@ -188,6 +188,7 @@ export const lessonNodes = pgTable(
   },
   (table) => [
     index("lesson_nodes_chapter_order_idx").on(table.chapterId, table.orderIndex),
+    uniqueIndex("lesson_nodes_chapter_order_unique").on(table.chapterId, table.orderIndex),
   ],
 );
 

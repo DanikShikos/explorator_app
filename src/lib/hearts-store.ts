@@ -1,8 +1,14 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { usersStats } from "@/db/schema";
+import { quizCards, userNodeProgress, usersStats } from "@/db/schema";
 import { ensureUserStats, getCurrentUserId } from "@/lib/current-user";
-import { applyHeartRefill, heartStatus, type HeartStatus } from "@/lib/hearts";
+import { applyHeartRefill, heartStatus, shouldChargeHeartOnMiss, type HeartStatus } from "@/lib/hearts";
+import { removeNullBytes } from "@/lib/utils";
+
+/** BE-005: ok+charged flattened with HeartStatus so FE can setHearts(result). */
+export type HeartChargeResult =
+  | ({ ok: true; charged: boolean } & HeartStatus)
+  | { ok: false; error: string };
 
 async function ownUser(userId: string) {
   const current = await getCurrentUserId();
@@ -50,6 +56,53 @@ export async function decrementHeart(userId: string): Promise<HeartStatus> {
     .where(eq(usersStats.userId, current));
   return heartStatus(hearts, stats.maxHearts, hearts >= stats.maxHearts ? null : lastHeartRefillAt);
 }
+
+/**
+ * BE-005 / RFC-003: conditional −1 heart for a miss on this quiz card.
+ * Does not schedule FSRS — pair with recordLessonAnswer / applyLessonMiss.
+ *
+ * charged true  → first-pass node (has nodeId, status not completed/mastered)
+ * charged false → no nodeId (due) or completed/mastered replay; hearts unchanged
+ */
+export async function decrementHeartForMiss(cardId: string): Promise<HeartChargeResult> {
+  try {
+    const userId = await getCurrentUserId();
+    const cleanCardId = removeNullBytes(cardId);
+    const [card] = await getDb()
+      .select({ id: quizCards.id, nodeId: quizCards.nodeId })
+      .from(quizCards)
+      .where(and(eq(quizCards.id, cleanCardId), eq(quizCards.userId, userId)))
+      .limit(1);
+
+    if (!card) {
+      return { ok: false, error: "Карточка не найдена" };
+    }
+
+    const status = await checkAndRegenHearts(userId);
+
+    const [progress] = card.nodeId
+      ? await getDb()
+          .select({ status: userNodeProgress.status })
+          .from(userNodeProgress)
+          .where(
+            and(eq(userNodeProgress.nodeId, card.nodeId), eq(userNodeProgress.userId, userId)),
+          )
+          .limit(1)
+      : [];
+
+    if (!shouldChargeHeartOnMiss(card.nodeId, progress?.status)) {
+      return { ok: true, charged: false, ...status };
+    }
+
+    const next = await decrementHeart(userId);
+    return { ok: true, charged: true, ...next };
+  } catch {
+    return { ok: false, error: "Не удалось обновить жизни" };
+  }
+}
+
+/** Alias used by LessonRunner / FE-005. */
+export const decrementHeartOnLessonMiss = decrementHeartForMiss;
 
 export async function earnHeartFromPractice(userId: string): Promise<HeartStatus> {
   const current = await ownUser(userId);

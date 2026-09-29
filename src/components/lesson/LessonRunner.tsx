@@ -5,8 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart } from "lucide-react";
-import { completeLessonNode, finishPractice, registerMiss } from "@/app/actions/lessons";
-import { decrementHeart } from "@/lib/actions/hearts";
+import { applyLessonMiss, completeLessonNode, finishPractice, recordLessonAnswer } from "@/app/actions/lessons";
 import { PathNotice } from "@/components/book/PathNotice";
 import { MatchingPairsBoard } from "@/components/lesson/MatchingPairsBoard";
 import { OutOfHeartsModal } from "@/components/lesson/OutOfHeartsModal";
@@ -30,7 +29,7 @@ export function LessonRunner({
   description,
   cards,
   heartStatus,
-  userId,
+  userId: _userId,
   mode,
   bookId,
   nodeId,
@@ -39,6 +38,7 @@ export function LessonRunner({
   description: string;
   cards: LessonCard[];
   heartStatus: HeartStatus;
+  /** Kept for frozen LessonRunner props; heart spend uses cardId via BE-005. */
   userId: string;
   mode: "lesson" | "practice";
   bookId?: string;
@@ -57,7 +57,8 @@ export function LessonRunner({
   const [cracking, setCracking] = useState<number | null>(null);
   const [catMood, setCatMood] = useState<BookCatMood>("idle");
   const [finished, setFinished] = useState(false);
-  const [outOfHearts, setOutOfHearts] = useState(heartStatus.hearts <= 0 && mode === "lesson");
+  // Page gates first-pass empty hearts. Replay with 0 hearts may mount — do not lock until a charged miss.
+  const [outOfHearts, setOutOfHearts] = useState(false);
   const [pending, startTransition] = useTransition();
   const [choiceOrder, setChoiceOrder] = useState<string[]>(() =>
     shuffle(cards[0]?.exercise.pairs?.map((pair) => pair.right) ?? []),
@@ -67,7 +68,12 @@ export function LessonRunner({
   const card = cards[index];
   const exercise = card?.exercise;
   const progress = cards.length === 0 ? 0 : Math.round((index / cards.length) * 100);
+  // bookId may be `bookUuid/lesson/nodeUuid` from /today/session so «Дальше» opens the next node.
+  const trailBookId = bookId?.split("/lesson/")[0];
   const returnHref = bookId ? `/books/${bookId}` : "/books";
+  const trailHref = trailBookId ? `/books/${trailBookId}` : "/books";
+  // Due review = lesson mode without nodeId. Props type unchanged — no review?: boolean.
+  const isDueReview = mode === "lesson" && !nodeId;
 
   useEffect(() => {
     if (outOfHearts) {
@@ -162,6 +168,11 @@ export function LessonRunner({
       setCatMood("correct");
       const nextCorrect = correctCount + 1;
       setCorrectCount(nextCorrect);
+      if (mode === "lesson" && card.id) {
+        startTransition(async () => {
+          await recordLessonAnswer(card.id, true);
+        });
+      }
       window.setTimeout(() => {
         if (index + 1 >= cards.length) {
           startTransition(() => finish(nextCorrect));
@@ -180,12 +191,33 @@ export function LessonRunner({
     if (mode === "practice") {
       return;
     }
-    playHeartLoss();
-    setCracking(Math.max(0, hearts.hearts - 1));
+    // Due review: FSRS Again only — no hearts (no nodeId).
+    if (isDueReview) {
+      startTransition(async () => {
+        if (card.id) {
+          await recordLessonAnswer(card.id, false);
+        }
+      });
+      return;
+    }
     startTransition(async () => {
-      await registerMiss(card.id);
-      const next = await decrementHeart(userId);
-      setHearts(next);
+      // BE-005: FSRS Again + conditional heart (charged only on first-pass node).
+      if (!card.id) {
+        return;
+      }
+      // Avoid double FSRS: applyLessonMiss already calls recordLessonAnswer.
+      const next = await applyLessonMiss(card.id);
+      if (!next.ok || !next.charged) {
+        return;
+      }
+      playHeartLoss();
+      setCracking(next.hearts);
+      setHearts({
+        hearts: next.hearts,
+        maxHearts: next.maxHearts,
+        nextHeartAt: next.nextHeartAt,
+      });
+      router.refresh();
       if (next.hearts <= 0) {
         setOutOfHearts(true);
         setCatMood("outOfHearts");
@@ -204,28 +236,31 @@ export function LessonRunner({
 
   if (!exercise) {
     return (
-      <PathNotice
-        mood="idle"
-        caption="Пока тут пусто"
-        title="В этом уроке пока нет заданий"
-        description="Котик ещё не собрал упражнения. Вернись на тропу и открой шаг позже."
-      >
-        <Button
-          className="h-12 rounded-2xl bg-path px-6 text-base font-semibold text-path-foreground hover:bg-path/90"
-          type="button"
-          onClick={() => router.push(returnHref)}
+      <div data-testid="practice-empty-notice">
+        <PathNotice
+          mood="idle"
+          caption="Пока тут пусто"
+          title="В этом уроке пока нет заданий"
+          description="Упражнения не собрались из теории. Вернись на тропу и открой шаг позже."
         >
-          К тропе
-        </Button>
-      </PathNotice>
+          <Button
+            className="h-12 rounded-2xl bg-path px-6 text-base font-semibold text-path-foreground hover:bg-path/90"
+            type="button"
+            data-testid="back-to-path-button"
+            onClick={() => router.push(trailHref)}
+          >
+            К тропе
+          </Button>
+        </PathNotice>
+      </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-lg space-y-5">
-      {bookId ? (
+    <div className="mx-auto max-w-lg space-y-5" data-testid="lesson-runner">
+      {trailBookId ? (
         <p className="text-sm text-muted-foreground">
-          <Link href={`/books/${bookId}`} className="hover:underline">
+          <Link href={trailHref} className="hover:underline">
             К тропе
           </Link>
         </p>
@@ -240,23 +275,32 @@ export function LessonRunner({
               transition={{ type: "spring", stiffness: 220, damping: 24 }}
             />
           </div>
-          <div className="flex gap-1">
-            {Array.from({ length: hearts.maxHearts }, (_, heartIndex) => {
-              const filled = heartIndex < hearts.hearts;
-              return (
-                <motion.span
-                  key={heartIndex}
-                  animate={
-                    cracking === heartIndex
-                      ? { scale: [1, 1.4, 0.35], rotate: [0, -20, 18, 0], opacity: [1, 1, 0.35] }
-                      : { scale: 1, rotate: 0, opacity: 1 }
-                  }
-                  transition={{ duration: 0.45 }}
-                >
-                  <Heart className={cn("size-6", filled ? "fill-rose-500 text-rose-500" : "text-rose-200")} />
-                </motion.span>
-              );
-            })}
+          <div
+            className="flex items-center gap-1.5"
+            data-testid="lesson-hearts"
+            aria-label={`Жизни: ${hearts.hearts} из ${hearts.maxHearts}`}
+          >
+            <span className="sr-only" data-testid="lesson-hearts-count">
+              {hearts.hearts}
+            </span>
+            <div className="flex gap-1" data-testid="hearts-indicator">
+              {Array.from({ length: hearts.maxHearts }, (_, heartIndex) => {
+                const filled = heartIndex < hearts.hearts;
+                return (
+                  <motion.span
+                    key={heartIndex}
+                    animate={
+                      cracking === heartIndex
+                        ? { scale: [1, 1.4, 0.35], rotate: [0, -20, 18, 0], opacity: [1, 1, 0.35] }
+                        : { scale: 1, rotate: 0, opacity: 1 }
+                    }
+                    transition={{ duration: 0.45 }}
+                  >
+                    <Heart className={cn("size-6", filled ? "fill-rose-500 text-rose-500" : "text-rose-200")} />
+                  </motion.span>
+                );
+              })}
+            </div>
           </div>
         </div>
         <div className="flex items-start justify-between gap-3">
@@ -276,13 +320,20 @@ export function LessonRunner({
         >
           <BookCat mood="cheer" size={110} caption="Ура!" />
           <p className="mt-3 text-2xl font-semibold text-path-ink">
-            {mode === "practice" ? "Практика засчитана" : "Урок пройден"}
+            {mode === "practice" ? "Практика засчитана" : isDueReview ? "Повтор завершён" : "Урок пройден"}
           </p>
           <p className="mt-2 text-muted-foreground">
-            {mode === "practice" ? "Вы получили +1 сердце." : `Верных ответов: ${correctCount} из ${cards.length}.`}
+            {mode === "practice"
+              ? "Вы получили +1 сердце."
+              : `Верных ответов: ${correctCount} из ${cards.length}.`}
           </p>
-          <Button className="mt-4 h-12 rounded-2xl bg-path px-6 text-path-foreground hover:bg-path/90" type="button" onClick={() => router.push(returnHref)}>
-            Дальше
+          <Button
+            className="mt-4 h-12 rounded-2xl bg-path px-6 text-path-foreground hover:bg-path/90"
+            type="button"
+            data-testid="continue-button"
+            onClick={() => router.push(returnHref)}
+          >
+            {isDueReview && bookId?.includes("/lesson/") ? "К новому шагу" : "Дальше"}
           </Button>
         </motion.div>
       ) : (
@@ -307,6 +358,7 @@ export function LessonRunner({
                   <button
                     key={option}
                     type="button"
+                    data-testid="answer-option"
                     disabled={Boolean(feedback)}
                     onClick={() => setPicked(optionIndex)}
                     className={cn(
@@ -329,6 +381,7 @@ export function LessonRunner({
                   onChange={(event) => setText(event.target.value)}
                   disabled={Boolean(feedback)}
                   className="h-12 rounded-2xl text-base"
+                  data-testid="answer-input"
                 />
               </>
             ) : null}
@@ -355,6 +408,7 @@ export function LessonRunner({
             {flash === "correct" ? (
               <motion.p
                 key="ok"
+                data-testid="lesson-answer-correct"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
@@ -367,13 +421,22 @@ export function LessonRunner({
 
           {feedback ? (
             <motion.div
+              data-testid="lesson-miss-feedback"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               className="mt-4 rounded-2xl bg-destructive/10 p-4 text-destructive"
             >
-              <p className="font-medium">Правильный ответ: {canonicalAnswer(exercise)}</p>
+              <p className="font-medium" data-testid="lesson-answer-wrong">
+                Правильный ответ: {canonicalAnswer(exercise)}
+              </p>
               <p className="mt-1 text-sm">{feedback}</p>
-              <Button className="mt-3 rounded-2xl" type="button" variant="outline" onClick={continueAfterMistake}>
+              <Button
+                className="mt-3 rounded-2xl"
+                type="button"
+                variant="outline"
+                data-testid="continue-button"
+                onClick={continueAfterMistake}
+              >
                 Дальше
               </Button>
             </motion.div>
@@ -381,6 +444,7 @@ export function LessonRunner({
             <Button
               className="mt-4 h-12 w-full rounded-2xl bg-path text-base font-semibold text-path-foreground hover:bg-path/90 disabled:bg-path/40"
               type="button"
+              data-testid="check-button"
               onClick={submit}
               disabled={pending || outOfHearts || !attempt() || Boolean(flash)}
             >
@@ -389,7 +453,7 @@ export function LessonRunner({
           )}
         </motion.div>
       )}
-      <OutOfHeartsModal open={outOfHearts} nextHeartAt={hearts.nextHeartAt} returnHref={returnHref} />
+      <OutOfHeartsModal open={outOfHearts} nextHeartAt={hearts.nextHeartAt} returnHref={trailHref} />
     </div>
   );
 }

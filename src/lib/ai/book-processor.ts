@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   bookChapters,
@@ -12,6 +12,7 @@ import {
 import { generateObjectWithCredits, hasAiProvider } from "@/lib/ai";
 import { getCurrentUserId } from "@/lib/current-user";
 import { canonicalAnswer, exerciseListSchema, parseExercise, type Exercise } from "@/lib/exercises";
+import { buildTheoryCards, isThinChapter, thinInterestBlurb } from "@/lib/ai/thin-chapter";
 import { newFsrsCard } from "@/lib/fsrs";
 import { removeNullBytes } from "@/lib/utils";
 
@@ -140,42 +141,71 @@ const nodeBlueprints = [
   { nodeType: "boss_challenge" as const, title: "Испытание", description: "Смешанные задания на применение.", xpReward: 40 },
 ];
 
-/** Short friendly theory snippets for summary_read nodes (2–3 cards). */
-export function buildTheoryCards(source: string): string[] {
-  const clean = removeNullBytes(source).replace(/\s+/g, " ").trim();
-  if (!clean) {
-    return ["Пока нет краткой выжимки — вернись к книге и собери материалы ещё раз."];
-  }
-
-  const bulletLines = removeNullBytes(source)
-    .split(/\n+/)
-    .map((line) => line.replace(/^[-•*]\s*/, "").trim())
-    .filter((line) => line.length >= 18);
-
-  if (bulletLines.length >= 2) {
-    return bulletLines.slice(0, 3).map((line) => clip(line, 220));
-  }
-
-  const sentences = clean.match(/[^.!?…]+[.!?…]?/g)?.map((part) => part.trim()).filter((part) => part.length >= 24) ?? [];
-  if (sentences.length >= 2) {
-    return sentences.slice(0, 3).map((line) => clip(line, 220));
-  }
-
-  const chunk = clip(clean, 420);
-  if (chunk.length <= 160) {
-    return [chunk];
-  }
-  const mid = Math.floor(chunk.length / 2);
-  const splitAt = chunk.indexOf(" ", mid);
-  if (splitAt > 40) {
-    return [chunk.slice(0, splitAt).trim(), chunk.slice(splitAt).trim()].filter(Boolean);
-  }
-  return [chunk];
-}
-
 function theoryDescriptionFromChapter(title: string, summary: string, content: string) {
   const cards = buildTheoryCards(summary || content || title);
   return cards.join("\n\n");
+}
+
+/** Theory string shown on summary_read — exclusive source for practice prompts (BE-003). */
+async function theoryTextForChapter(
+  chapterId: string,
+  chapter: { title: string; contentSummary: string; content: string },
+) {
+  const [sibling] = await getDb()
+    .select({ description: lessonNodes.description })
+    .from(lessonNodes)
+    .where(and(eq(lessonNodes.chapterId, chapterId), eq(lessonNodes.nodeType, "summary_read")))
+    .orderBy(asc(lessonNodes.orderIndex))
+    .limit(1);
+  const fromSibling = sibling?.description?.trim() ?? "";
+  if (fromSibling.length > 0) {
+    return fromSibling;
+  }
+  return theoryDescriptionFromChapter(chapter.title, chapter.contentSummary, chapter.content);
+}
+
+function normalizeGrounding(value: string) {
+  return removeNullBytes(value)
+    .trim()
+    .replace(/[«»"'„“”‘’.,!?;:()[\]{}…—–-]/g, " ")
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase();
+}
+
+function phraseInTheory(theoryNorm: string, phrase: string) {
+  const needle = normalizeGrounding(phrase);
+  if (needle.length < 2) {
+    return false;
+  }
+  return theoryNorm.includes(needle);
+}
+
+function exerciseAnswerPhrases(exercise: Exercise): string[] {
+  if (exercise.type === "multiple_choice") {
+    return [exercise.options?.[exercise.correctIndex ?? 0] ?? ""];
+  }
+  if (exercise.type === "fill_blank") {
+    return [exercise.answer ?? ""];
+  }
+  if (exercise.type === "matching_pairs") {
+    return (exercise.pairs ?? []).flatMap((pair) => [pair.left, pair.right]);
+  }
+  return [...(exercise.steps ?? [])];
+}
+
+/** Drop items whose correct answer / key phrases are absent from theory-text. */
+function filterGroundedExercises(exercises: Exercise[], theoryText: string): Exercise[] {
+  const theoryNorm = normalizeGrounding(theoryText);
+  if (!theoryNorm) {
+    return [];
+  }
+  return exercises.filter((exercise) => {
+    const phrases = exerciseAnswerPhrases(exercise).map((part) => part.trim()).filter(Boolean);
+    if (phrases.length === 0) {
+      return false;
+    }
+    return phrases.every((phrase) => phraseInTheory(theoryNorm, phrase));
+  });
 }
 
 async function chapterForUser(chapterId: string, userId: string) {
@@ -190,70 +220,6 @@ async function chapterForUser(chapterId: string, userId: string) {
     .where(and(eq(bookChapters.id, chapterId), eq(books.userId, userId)))
     .limit(1);
   return row ?? null;
-}
-
-function fallbackExercises(title: string): Exercise[] {
-  return [
-    {
-      type: "multiple_choice",
-      prompt: `О чём глава «${title}»?`,
-      options: [title, "Случайная дата", "Имя автора", "Номер страницы"],
-      correctIndex: 0,
-      pairs: null,
-      sentence: null,
-      answer: null,
-      steps: null,
-      explanation: "Верный вариант называет тему главы.",
-    },
-    {
-      type: "fill_blank",
-      prompt: "Вставьте тему главы.",
-      options: null,
-      correctIndex: null,
-      pairs: null,
-      sentence: "Эта глава про ____.",
-      answer: title.slice(0, 40),
-      steps: null,
-      explanation: `Нужно было указать: ${title}.`,
-    },
-    {
-      type: "matching_pairs",
-      prompt: "Соедините идею и главу.",
-      options: null,
-      correctIndex: null,
-      pairs: [
-        { left: "Тема", right: title.slice(0, 40) },
-        { left: "Формат", right: "Короткий урок" },
-        { left: "Цель", right: "Применить мысль" },
-      ],
-      sentence: null,
-      answer: null,
-      steps: null,
-      explanation: "Каждая левая карточка совпадает с правой по смыслу урока.",
-    },
-    {
-      type: "sequence_order",
-      prompt: "В каком порядке идёт урок?",
-      options: null,
-      correctIndex: null,
-      pairs: null,
-      sentence: null,
-      answer: null,
-      steps: ["Прочитать суть", "Ответить", "Проверить себя"],
-      explanation: "Сначала суть, потом ответ, затем проверка.",
-    },
-    {
-      type: "multiple_choice",
-      prompt: "Что делать с ошибкой в уроке?",
-      options: ["Потерять сердце", "Купить сердце за очки", "Пропустить главу", "Закрыть книгу"],
-      correctIndex: 0,
-      pairs: null,
-      sentence: null,
-      answer: null,
-      steps: null,
-      explanation: "Ошибка снимает одну жизнь. Сердце возвращает практика или таймер.",
-    },
-  ];
 }
 
 async function previousChapterCleared(bookId: string, chapterIndex: number, userId: string) {
@@ -289,19 +255,72 @@ export async function generateLearningPathOnFly(chapterId: string, options?: { a
     return { ok: false as const, error: "Глава не найдена" };
   }
 
+  const thin = isThinChapter(owned.chapter.contentSummary, owned.chapter.content);
   const existing = await getDb()
     .select()
     .from(lessonNodes)
     .where(eq(lessonNodes.chapterId, chapterId))
     .orderBy(asc(lessonNodes.orderIndex));
   if (existing.length > 0) {
+    if (thin && existing.some((node) => node.nodeType !== "summary_read")) {
+      await getDb()
+        .delete(lessonNodes)
+        .where(and(eq(lessonNodes.chapterId, chapterId), ne(lessonNodes.nodeType, "summary_read")));
+      const blurb = thinInterestBlurb(owned.chapter.title, owned.chapter.contentSummary, owned.chapter.content);
+      await getDb()
+        .update(lessonNodes)
+        .set({ description: blurb })
+        .where(and(eq(lessonNodes.chapterId, chapterId), eq(lessonNodes.nodeType, "summary_read")));
+    }
+    const kept = thin
+      ? await getDb()
+          .select()
+          .from(lessonNodes)
+          .where(eq(lessonNodes.chapterId, chapterId))
+          .orderBy(asc(lessonNodes.orderIndex))
+      : existing;
     await ensureChapterNodeProgress(
-      existing,
+      kept,
       userId,
       owned.chapter.bookId,
       owned.chapter.chapterIndex,
     );
-    return { ok: true as const, nodes: existing };
+    return { ok: true as const, nodes: kept };
+  }
+
+  if (thin) {
+    const unlocked = await previousChapterCleared(owned.chapter.bookId, owned.chapter.chapterIndex, userId);
+    const blurb = thinInterestBlurb(owned.chapter.title, owned.chapter.contentSummary, owned.chapter.content);
+    const inserted = await getDb()
+      .insert(lessonNodes)
+      .values({
+        chapterId,
+        title: "Суть главы",
+        description: blurb,
+        nodeType: "summary_read",
+        orderIndex: 0,
+        xpReward: 15,
+        isGenerated: false,
+      })
+      .onConflictDoNothing({ target: [lessonNodes.chapterId, lessonNodes.orderIndex] })
+      .returning();
+    if (inserted.length > 0) {
+      await getDb()
+        .insert(userNodeProgress)
+        .values({
+          userId,
+          nodeId: inserted[0].id,
+          status: unlocked ? "available" : "locked",
+        })
+        .onConflictDoNothing();
+    }
+    const nodes = await getDb()
+      .select()
+      .from(lessonNodes)
+      .where(eq(lessonNodes.chapterId, chapterId))
+      .orderBy(asc(lessonNodes.orderIndex));
+    await ensureChapterNodeProgress(nodes, userId, owned.chapter.bookId, owned.chapter.chapterIndex);
+    return { ok: true as const, nodes };
   }
 
   const theoryText = theoryDescriptionFromChapter(
@@ -363,15 +382,26 @@ export async function generateLearningPathOnFly(chapterId: string, options?: { a
     orderIndex,
     xpReward: node.xpReward,
     isGenerated: node.isGenerated,
-  }))).returning();
+  }))).onConflictDoNothing({
+    target: [lessonNodes.chapterId, lessonNodes.orderIndex],
+  }).returning();
 
-  await getDb().insert(userNodeProgress).values(inserted.map((node, index) => ({
-    userId,
-    nodeId: node.id,
-    status: unlocked && index === 0 ? "available" as const : "locked" as const,
-  }))).onConflictDoNothing();
+  const nodes = await getDb()
+    .select()
+    .from(lessonNodes)
+    .where(eq(lessonNodes.chapterId, chapterId))
+    .orderBy(asc(lessonNodes.orderIndex));
 
-  return { ok: true as const, nodes: inserted };
+  if (inserted.length > 0) {
+    await getDb().insert(userNodeProgress).values(inserted.map((node, index) => ({
+      userId,
+      nodeId: node.id,
+      status: unlocked && index === 0 ? "available" as const : "locked" as const,
+    }))).onConflictDoNothing();
+  }
+
+  await ensureChapterNodeProgress(nodes, userId, owned.chapter.bookId, owned.chapter.chapterIndex);
+  return { ok: true as const, nodes };
 }
 
 export async function ensureFullLearningPath(bookId: string) {
@@ -486,6 +516,9 @@ export async function generateLessonContentOnFly(nodeId: string) {
     return { ok: false as const, error: "Урок ещё закрыт" };
   }
 
+  // RFC-003: expose progress so the lesson page can set heartsCharged.
+  const nodeStatus = progress?.status ?? "available";
+
   if (node.nodeType === "summary_read") {
     const description = node.description?.trim() ?? "";
     const summary = owned.chapter.contentSummary?.trim() ?? "";
@@ -497,6 +530,7 @@ export async function generateLessonContentOnFly(nodeId: string) {
     return {
       ok: true as const,
       node,
+      nodeStatus,
       cards: [] as { id: string; exercise: Exercise }[],
       theoryCards: buildTheoryCards(theorySource),
       chapterTitle: owned.chapter.title,
@@ -512,39 +546,70 @@ export async function generateLessonContentOnFly(nodeId: string) {
     const exercise = parseExercise(card.contentData);
     return exercise ? [{ id: card.id, exercise }] : [];
   });
-  if (ready.length >= 5) {
-    return { ok: true as const, node, cards: ready, theoryCards: [] as string[], chapterTitle: owned.chapter.title };
+  // After grounding, fewer than 5 cards is valid — do not regenerate while rows exist.
+  if (stored.length > 0 && ready.length > 0) {
+    return {
+      ok: true as const,
+      node,
+      nodeStatus,
+      cards: ready,
+      theoryCards: [] as string[],
+      chapterTitle: owned.chapter.title,
+    };
+  }
+  if (stored.length > 0 && ready.length === 0) {
+    await getDb().delete(quizCards).where(and(eq(quizCards.nodeId, nodeId), eq(quizCards.userId, userId)));
   }
 
-  let exercises = fallbackExercises(owned.chapter.title);
-  if (hasAiProvider()) {
+  const theoryText = await theoryTextForChapter(node.chapterId, {
+    title: owned.chapter.title,
+    contentSummary: owned.chapter.contentSummary,
+    content: owned.chapter.content,
+  });
+
+  let exercises: Exercise[] = [];
+  if (hasAiProvider() && theoryText.trim()) {
     try {
       const { object } = await generateObjectWithCredits({
         schema: exerciseListSchema,
         maxOutputTokens: 3500,
         prompt: [
-          "Собери 5–6 коротких упражнений по главе. Смешай типы: multiple_choice, matching_pairs, fill_blank, sequence_order.",
+          "Собери 5–6 коротких упражнений ТОЛЬКО по тексту теории ниже.",
+          "Каждый верный ответ и ключевые формулировки должны встречаться в этом тексте (дословно или как явная подстрока).",
+          "Запрещено добавлять факты, имена, даты или правила, которых нет в тексте теории.",
+          "Смешай типы: multiple_choice, matching_pairs, fill_blank, sequence_order.",
           "Для multiple_choice ровно 4 коротких options и correctIndex с нуля. Остальные поля этих типов — null.",
-          "Для matching_pairs 3 пары left/right. Для fill_blank answer — одно-три слова, sentence содержит ____.",
-          "Для sequence_order steps уже в правильном порядке. explanation — одна фраза, почему ответ верный.",
+          "Для matching_pairs 3 пары left/right — оба конца пары из теории. Для fill_blank answer — одно-три слова из теории, sentence содержит ____.",
+          "Для sequence_order steps уже в правильном порядке и каждый шаг из теории. explanation — одна фраза, почему ответ верный.",
           `Урок: ${node.title}. Тип: ${node.nodeType}.`,
           `Глава: ${owned.chapter.title}`,
-          clip(owned.chapter.contentSummary || owned.chapter.content, 3000),
+          "Текст теории (единственный источник):",
+          clip(theoryText, 3000),
         ].join("\n\n"),
       });
-      exercises = object.exercises;
+      exercises = filterGroundedExercises(object.exercises, theoryText);
     } catch {
-      exercises = fallbackExercises(owned.chapter.title);
+      exercises = [];
     }
   }
 
-  if (stored.length > 0) {
-    await getDb().delete(quizCards).where(and(eq(quizCards.nodeId, nodeId), eq(quizCards.userId, userId)));
+  // No fallbackExercises: ungrounded / AI failure → empty cards, page stays ok:true.
+  if (exercises.length === 0) {
+    return {
+      ok: true as const,
+      node,
+      nodeStatus,
+      cards: [] as { id: string; exercise: Exercise }[],
+      theoryCards: [] as string[],
+      chapterTitle: owned.chapter.title,
+    };
   }
+
   const rows = await storeExercises(nodeId, userId, exercises);
   return {
     ok: true as const,
     node,
+    nodeStatus,
     cards: rows.flatMap((card, index) => {
       const exercise = exercises[index];
       return exercise ? [{ id: card.id, exercise }] : [];

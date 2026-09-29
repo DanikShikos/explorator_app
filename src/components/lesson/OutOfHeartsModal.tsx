@@ -31,7 +31,7 @@ export function OutOfHeartsModal({
 
   return (
     <Dialog open={open}>
-      <DialogContent className="max-w-md text-center">
+      <DialogContent className="max-w-md text-center" data-testid="lesson-out-of-hearts">
         <DialogHeader className="items-center">
           <BookCat mood="outOfHearts" size={100} />
           <DialogTitle className="text-2xl">Жизни кончились — отдыхаем</DialogTitle>
@@ -40,7 +40,9 @@ export function OutOfHeartsModal({
           </DialogDescription>
         </DialogHeader>
         <Button asChild className="h-11 w-full rounded-2xl bg-path text-path-foreground hover:bg-path/90">
-          <Link href={practiceHref}>Пройти практику (+1 сердце)</Link>
+          <Link href={practiceHref} data-testid="practice-button">
+            Пройти практику (+1 сердце)
+          </Link>
         </Button>
         <p className="text-sm text-muted-foreground">Следующее сердце через {countdown}</p>
         <Button variant="ghost" asChild className="rounded-2xl">

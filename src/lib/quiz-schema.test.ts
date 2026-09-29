@@ -52,4 +52,21 @@ describe("generatedQuizSchema", () => {
       explanation: "None",
     });
   });
+
+  it("rejects truncated / empty AI payloads without throwing", () => {
+    expect(generatedQuizSchema.safeParse(null).success).toBe(false);
+    expect(generatedQuizSchema.safeParse({}).success).toBe(false);
+    expect(generatedQuizSchema.safeParse({ questions: [] }).success).toBe(false);
+    expect(generatedQuizSchema.safeParse({ questions: "truncated" }).success).toBe(false);
+  });
+
+  it("rejects open-ended answers longer than four words", () => {
+    const question = {
+      ...validQuestion,
+      type: "open_ended" as const,
+      options: null,
+      answer: "one two three four five",
+    };
+    expect(generatedQuizSchema.safeParse({ questions: [question] }).success).toBe(false);
+  });
 });

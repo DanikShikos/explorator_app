@@ -24,6 +24,7 @@ export function PathNotice({
   return (
     <section
       role={tone === "alert" ? "alert" : "status"}
+      data-testid="path-notice"
       className={cn(
         "rounded-3xl border p-6 sm:p-8",
         tone === "alert" ? "border-destructive/40 bg-path-soft" : "border-border bg-path-soft",

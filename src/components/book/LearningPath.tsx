@@ -87,6 +87,7 @@ export function LearningPath({
         <Button
           className="h-12 rounded-2xl bg-path px-6 text-base font-semibold text-path-foreground hover:bg-path/90"
           type="button"
+          data-testid="build-path-button"
           onClick={build}
           disabled={pending}
         >
@@ -98,7 +99,7 @@ export function LearningPath({
   }
 
   return (
-    <section id="learning-path" className="space-y-5">
+    <section id="learning-path" data-testid="learning-path" className="space-y-5">
       <div className="flex items-end justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold text-path-ink">Учебная тропа</h2>
@@ -193,7 +194,7 @@ export function LearningPath({
                 </p>
               ) : isTheory(active.nodeType) ? (
                 <Button className="mt-3 h-11 rounded-2xl bg-path px-5 font-semibold text-path-foreground hover:bg-path/90" asChild>
-                  <Link href={`/books/${bookId}/lesson/${active.id}`}>
+                  <Link href={`/books/${bookId}/lesson/${active.id}`} data-testid="start-lesson-button">
                     {isPathDone(active.status) ? "Повторить теорию" : "Читать теорию"}
                   </Link>
                 </Button>
@@ -203,12 +204,17 @@ export function LearningPath({
                     Нужна хотя бы 1 жизнь. Практика вернёт сердце сразу, иначе одно сердце каждые 4 часа — без покупки за очки.
                   </p>
                   <Button className="h-11 rounded-2xl bg-path px-5 font-semibold text-path-foreground hover:bg-path/90" asChild>
-                    <Link href={`/practice?return=${encodeURIComponent(`/books/${bookId}`)}`}>Пройти практику</Link>
+                    <Link
+                      href={`/practice?return=${encodeURIComponent(`/books/${bookId}`)}`}
+                      data-testid="practice-button"
+                    >
+                      Пройти практику
+                    </Link>
                   </Button>
                 </div>
               ) : (
                 <Button className="mt-3 h-11 rounded-2xl bg-path px-5 font-semibold text-path-foreground hover:bg-path/90" asChild>
-                  <Link href={`/books/${bookId}/lesson/${active.id}`}>
+                  <Link href={`/books/${bookId}/lesson/${active.id}`} data-testid="start-lesson-button">
                     {isPathDone(active.status) ? "Повторить урок" : "Начать урок"}
                   </Link>
                 </Button>
