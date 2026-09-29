@@ -61,6 +61,8 @@
 
 21:05 — **FE-004 Ready for QA**. Theory-only: `hasPracticeAhead` из `getLearningPath` → после «Понятно» без «дальше практика». Empty practice → `practice-empty-notice` до hearts-gate. Testids FE-001…004 + lesson/path. **FE-005** уже Ready for QA (parallel, `applyLessonMiss`). localhost:3000 down — browser не кликал. Cursor goal не закрывал.
 
+~21:15 — **FE-004 browser QA**: server :3000 up (session OK); clicked Продолжить → lesson «Закрепление», К тропе, Библиотека (1 book); DOM testids `today-continue-cta`/`today-panel`/`book-cat`/`lesson-runner`/`lesson-hearts`/`answer-option`|`answer-input`/`learning-path`; theory-only глава не найдена (все главы 4 шага) — complete copy не кликал; UI fixes none. Goal не закрывал.
+
 ### Frontend QA bugs (из `qa-bugs.md`)
 - **BUG-002** — fixed: добавлены `today-panel`, `today-continue-cta`, `today-due-count`, `today-session`, `today-session-banner`, `lesson-runner`, `lesson-answer-correct`, `lesson-answer-wrong`, `lesson-miss-feedback`, `book-cat`.
 - **BUG-003** — fixed: `BookCat` → `data-testid="book-cat"` (не `mascot`).
