@@ -11,7 +11,7 @@
 
 Чекбокс в заголовке `### [ ]` / `### [x]` = текущая стадия (To Do vs Ready for QA и далее). Под заголовком всегда три строки статусов. `Verified / Done` не отмечать без QA.
 
-Цель: **BE-006** + **BE-007** (persist тропы + control gate) → To Do. **BE-005** (RFC-003) → Ready for QA. BE-003/BE-004 compose, не дублировать. RFC-004 в backlog, не карточить. RFC-001/002 не переоткрывать.
+Цель: **BE-006** + **BE-007** (persist тропы + control gate) → To Do. **BE-005** (RFC-003) → Verified / Done (QA 2026-09-29). BE-003/BE-004 compose, не дублировать. RFC-004 в backlog, не карточить. RFC-001/002 не переоткрывать.
 
 Правило карточки: критичность `P0` / `P1` / `P2`, ссылки на файлы. В каждой задаче: schema, сигнатура action/route, JSON для AI, RLS, ошибки, **Acceptance Criteria (DoD)** чекбоксами.
 
@@ -84,11 +84,12 @@
 
 - [ ] To Do
 - [x] Ready for QA
-- [ ] Verified / Done
+- [x] Verified / Done
 - [x] **Критичность:** P0 (RFC-003)
 - **Статус (2026-09-29 21:05):** Ready for QA (backend-desk confirm; Verified не ставить).
 - **Статус (2026-09-29 21:00, backend):** Ready for QA. `applyLessonMiss` + `decrementHeartForMiss`; LessonRunner miss → charged gate; PathNode/props frozen. Контракт в backend-desk.
 - **Статус (2026-09-29 fix pass):** DoD still met. Charge predicate extracted to `shouldChargeHeartOnMiss` in `src/lib/hearts.ts` (used by store); vitest charge table covers first-pass / replay / due.
+- **QA (2026-09-29):** Verified — vitest hearts+charge+learning-path+fsrs 4/18 green; predicate+store+applyLessonMiss code review; browser first-pass miss −1, completed replay miss hearts unchanged.
 - **Зачем:** ошибка на узле со статусом не `completed` и не `mastered` снимает 1 сердце; та же ошибка на повторе уже пройденного/освоенного узла сердце не снимает — только FSRS Again (`due` сдвигается). Ноль сердец на **новом** упражнении по-прежнему пауза + практика + таймер 4ч. Теория (`summary_read`) без жизней.
 - **Где видно:** `LessonRunner` (спринт / пары / босс) и `/today/session` (due-повтор). Сейчас клиент: `recordLessonAnswer` + `decrementHeart` при `nodeId`; due без `nodeId` (`isDueReview`) сердца не тратит — этого мало: повтор **пройденного** узла с `nodeId` всё ещё зовёт `decrementHeart`.
 - **Schema:** без изменений. Уже есть `user_node_progress.status` (`available` | `completed` | `mastered` | …) и `users_stats.hearts` / `max_hearts` / `last_heart_refill_at`. Колонок не добавлять.

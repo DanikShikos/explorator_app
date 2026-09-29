@@ -11,7 +11,7 @@
 
 Чекбокс в заголовке `### [ ]` / `### [x]` = текущая стадия (To Do vs Ready for QA и далее). Под заголовком всегда три строки статусов. `Verified / Done` не отмечать без QA.
 
-Цель: **FE-006** (path not-ready / gate UI) → To Do. FE-001…FE-005 → Ready for QA. RFC-004 в backlog, не карточить. RFC-001/002 не переоткрывать.
+Цель: **FE-006** → To Do. FE-001/002/003/005 → Verified (QA 2026-09-29); **FE-004** still Ready for QA. RFC-004 в backlog, не карточить. RFC-001/002 не переоткрывать.
 
 Правило карточки: критичность `P0` / `P1` / `P2`, ссылки на файлы. В каждой задаче: компоненты, кадр маскота, интерактив, **обязательные `data-testid`**, **Acceptance Criteria (DoD)** чекбоксами.
 
@@ -42,11 +42,11 @@
     - `path-gate-ready` — оболочка/маркер когда approved и видна playable тропа (рядом с `learning-path`)
 - **Вне объёма:** схема, AI, сердца, смена PathNode / LessonRunner props, RFC-004, новые mood.
 - **Acceptance Criteria (DoD):**
-  - [ ] pending/rejected: PathNotice + idle (или wrong при ошибке), нет fake nodes, нет auto-regen на каждый заход.
-  - [ ] «Собрать тропу» один явный action; при уже approved — не перегенерирует.
-  - [ ] approved: `learning-path` из stored nodes; PathNode без новых полей.
-  - [ ] На месте `path-gate-pending` / `path-gate-rejected` / `path-gate-ready` + reuse testids; moods только из пяти.
-  - [ ] Пустой not-ready не выглядит как broken empty path без copy.
+  - [x] pending/rejected: PathNotice + idle (или wrong при ошибке), нет fake nodes, нет auto-regen на каждый заход.
+  - [x] «Собрать тропу» один явный action; при уже approved — не перегенерирует.
+  - [x] approved: `learning-path` из stored nodes; PathNode без новых полей.
+  - [x] На месте `path-gate-pending` / `path-gate-rejected` / `path-gate-ready` + reuse testids; moods только из пяти.
+  - [x] Пустой not-ready не выглядит как broken empty path без copy.
 
 ## Готово (Ready for QA — Verified не ставить без QA)
 
@@ -77,6 +77,7 @@
   - [x] PathNode / props `LessonRunner` frozen; theory без жизней.
 - **Design note (2026-09-29 21:05):** miss с `nodeId` → `applyLessonMiss` (`charged`); due → только `recordLessonAnswer(false)`. Crack/heart/`outOfHearts` только при `charged: true`. Props frozen. FE-004 не трогал.
 - **Статус (2026-09-29 fix pass):** DoD still met after re-read. BUG-001 closed (server `charged` gate). FE-005 testids present. Ready for QA.
+- **QA (2026-09-29):** Verified — browser: available miss `lesson-hearts-count` 4→3 + `lesson-miss-feedback` + `book-cat` mood `wrong`; completed replay miss hearts stayed 3, no `lesson-out-of-hearts`. Due session not live (dueCount=0). Out-of-hearts not drained (skipped). testids present.
 
 ### [x] FE-004 · P1 · Theory-only глава и пустые cards практики
 
@@ -85,6 +86,7 @@
 - [ ] Verified / Done
 - [x] **Критичность:** P1 (после BE-004 / стык с BE-003 `cards: []`)
 - **Статус (2026-09-29 21:05):** Ready for QA — theory-only copy без «дальше практика»; empty cards → `practice-empty-notice` до hearts-gate; `learning-path` / `theory-complete-message` / path-notice testids; localhost:3000 был down.
+- **QA (2026-09-29):** Still Ready for QA — browser confirmed `learning-path` (104 steps). Theory-only complete copy and `practice-empty-notice` not reachable in live book (no thin/empty practice). Code matches DoD; no defect; leave Ready until thin/empty exercised.
 - **Зачем:** `LearningPath` уже рисует сколько узлов пришло — лишние шаги не выдумывать. Но `TheoryLesson` (`src/components/lesson/TheoryLesson.tsx`) после «Понятно» пишет «Дальше — практика на тропе» — ложный CTA на theory-only главе. `LessonRunner` при `cards.length === 0` (BE-003: grounding drop / AI fail) не должен ломаться молча.
 - **Компоненты:** `TheoryLesson`, страница `src/app/books/[id]/lesson/[nodeId]/page.tsx`, при необходимости `PathNotice` / `LearningPath` (только копирайт empty). **Не** менять форму `PathNode` и props `LessonRunner` (можно нейтральный copy внутри TheoryLesson без новых LessonRunner props; если нужен флаг «есть практика дальше» — взять из уже доступных узлов тропы на странице / server props TheoryLesson, не трогая LessonRunner).
 - **Поведение:**
@@ -124,7 +126,7 @@
   - [x] `/` показывает активную книгу и CTA «Продолжить», не список заметок.
   - [x] Idle-кот; заметки только вторичной ссылкой.
   - [x] На месте `data-testid`: `today-panel`, `today-continue-cta`, `today-due-count`, `book-cat`.
-  - [ ] QA: Verified только после приёмки QA.
+  - [x] QA: Verified только после приёмки QA.
 
 ### [x] FE-003 · P1 · «Продолжить» = короткая сессия (повтор → новый шаг)
 
@@ -145,7 +147,7 @@
   - [x] Due > 0 → LessonRunner на due; due = 0 + nextNode → урок; без next → PathNotice.
   - [x] Props `LessonRunner` без новых полей; path-encode `bookId` для «Дальше».
   - [x] На месте `data-testid`: `today-session`, `today-session-banner`, `lesson-runner`, `book-cat`.
-  - [ ] QA: Verified только после приёмки QA.
+  - [x] QA: Verified только после приёмки QA.
 
 ### [x] FE-002 · P0 · Ответ в LessonRunner планирует карточку (Good / Again)
 
@@ -166,7 +168,7 @@
   - [x] Верный/неверный ответ в lesson mode вызывает Good/Again (`recordLessonAnswer`).
   - [x] Интервал на экране не показывается; props frozen.
   - [x] На месте `data-testid`: `lesson-runner`, `lesson-answer-correct`, `lesson-answer-wrong`, `lesson-miss-feedback`.
-  - [ ] QA: Verified только после приёмки QA.
+  - [x] QA: Verified только после приёмки QA.
 
 ## Справочник (не задачи)
 

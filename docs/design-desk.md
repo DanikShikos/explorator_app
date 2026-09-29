@@ -2,7 +2,7 @@
 
 **Кто:** агент Design и Frontend (этот чат). Пиши сюда статус; Backend и аналитик читают **на каждом шаге**.
 
-Обновлено: 2026-09-29 (fix pass)
+Обновлено: 2026-09-29 ~21:20 UTC+3
 
 ## Цель
 
@@ -48,6 +48,8 @@
 | `theory-complete-message` | финал TheoryLesson |
 | `practice-empty-notice` | пустые practice cards |
 | `learning-path` / `path-notice` | тропа / notice |
+| `path-gate-pending` / `path-gate-rejected` / `path-gate-ready` | FE-006 gate |
+| `build-path-button` | явная сборка тропы |
 | `today-panel` / `today-due-count` / `today-session` / `today-session-banner` / `lesson-runner` | today + runner |
 
 Карточка FE может требовать дополнительные id — выполнять DoD карточки.
@@ -57,20 +59,22 @@
 
 ## Сейчас от Design
 
-**2026-09-29 fix pass** — BUG-001/002/003 Fixed; FE-001…005 Ready for QA. Charge UI uses server `charged`; DoD testids on place. Browser click-through not run. Props frozen.
+**2026-09-29 ~21:20 — FE-006 Ready for QA.** Path gate UI:
 
-21:05 — **FE-004 Ready for QA**. Theory-only: `hasPracticeAhead` из `getLearningPath` → после «Понятно» без «дальше практика». Empty practice → `practice-empty-notice` до hearts-gate. Testids FE-001…004 + lesson/path. **FE-005** уже Ready for QA (parallel, `applyLessonMiss`). localhost:3000 down — browser не кликал. Cursor goal не закрывал.
-
-~21:15 — **FE-004 browser QA**: server :3000 up (session OK); clicked Продолжить → lesson «Закрепление», К тропе, Библиотека (1 book); DOM testids `today-continue-cta`/`today-panel`/`book-cat`/`lesson-runner`/`lesson-hearts`/`answer-option`|`answer-input`/`learning-path`; theory-only глава не найдена (все главы 4 шага) — complete copy не кликал; UI fixes none. Goal не закрывал.
+- `/books/[id]` больше **не** зовёт `ensureFullLearningPath` на SSR (read-only open).
+- `LearningPath` принимает optional `pathStatus` (`pending` | `approved` | `rejected`) — **не** поле PathNode. Пока Backend не отдал колонку — infer: nodes → approved, иначе pending.
+- pending/rejected: PathNotice + mood idle (wrong при ошибке сборки / rejected); **без** кружков узлов; кнопка `build-path-button`; testids `path-gate-pending` / `path-gate-rejected`.
+- approved: `learning-path` + `path-gate-ready`; кнопка сборки скрыта / no-op.
+- loading copy нейтральный («Открываю книгу»), не «Собираю тропу».
+- PathNode / LessonRunner props frozen. Actions / data.ts / schema не трогал.
+- FE-004 не переделывал. Open Frontend bugs в qa-bugs — нет (BUG-001…003 Fixed).
+- Cursor product-wide goal **не** закрываю (BE-006/007 ещё To Do на Backend).
 
 ### Frontend QA bugs (из `qa-bugs.md`)
-- **BUG-002** — fixed: добавлены `today-panel`, `today-continue-cta`, `today-due-count`, `today-session`, `today-session-banner`, `lesson-runner`, `lesson-answer-correct`, `lesson-answer-wrong`, `lesson-miss-feedback`, `book-cat`.
-- **BUG-003** — fixed: `BookCat` → `data-testid="book-cat"` (не `mascot`).
-- **BUG-001** — Frontend-назначен, Backend уже переписал miss на `applyLessonMiss`; в UI подтверждено (не трогал actions). Retest — на QA.
+- **BUG-001…003** — Fixed; open [Frontend] нет.
 
-- **FE-004 [x] Ready for QA**
-- **FE-005 [x] Ready for QA** (не моя сессия целиком; testids hearts/miss на месте)
-- **FE-001/002/003** — testid DoD закрыт; Verified только QA
+- **FE-006 [x] Ready for QA**
+- **FE-001…FE-005** — Ready for QA; Verified только QA
 - `PathNode` / props `LessonRunner` — **frozen**
 - data/actions/schema/AI — не трогал
 
@@ -83,25 +87,26 @@
 
 Цвета тропы: `bg-path`, `bg-path-soft`, `text-path-ink`, `text-path-foreground`, `bg-reward`.
 
+Gate availability (отдельный prop/DTO книги, не PathNode): `pending` | `approved` | `rejected`.
+
 ## QA bugs
 
-- **BUG-002** [Frontend] — fixed (testid DoD FE-001…003).
-- **BUG-003** [Frontend] — fixed (`book-cat`).
-- **BUG-001** — miss path уже на `applyLessonMiss` (Backend + FE-005); Design не менял actions.
+- Open [Frontend] — нет.
 
 ## Backend уже заявил
 
 - BE-003: practice AI fail / ungrounded → `cards: []`, `ok: true`
 - BE-004: thin chapter → один `summary_read`
 - BE-005 Ready for QA → FE-005 Ready for QA
+- BE-006 / BE-007 ещё To Do — `path_status` reader в desk пока нет; FE-006 читает optional `pathStatus` / infer
 
 ## Нужно от Backend
 
-Сейчас блокеров по FE-004 нет.
+`path_status` / `getBookPathAvailability` (BE-006/007): когда появится на `book` или отдельным DTO — page уже умеет прокинуть `pathStatus` в `LearningPath`. Пока infer по `nodes.length`.
 
 ## Очередь Design
 
-- FE-004 / FE-005 Ready for QA — ждут Verified от QA
+- FE-001…FE-006 Ready for QA — ждут Verified от QA
 - Cursor product-wide goal не закрываю
 
 ## Маскот

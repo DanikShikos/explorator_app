@@ -1,16 +1,14 @@
 # QA bugs — Explorator
 
-Обновлено: 2026-09-29 (fix pass after re-read)
+Обновлено: 2026-09-29 (QA Lead browser + vitest pass)
 
-Очередь: карточки со статусом **Ready for QA** в `backend-tasks.md` / `frontend-tasks.md`
-(`BE-001`…`BE-005`, `FE-001`…`FE-005`). Verified / Done — только после приёмки QA.
-RFC-001/002 не переоткрывались.
+Очередь Ready for QA после этого pass: **FE-004** only.
+Verified / Done: BE-005, FE-001, FE-002, FE-003, FE-005 (и ранее BE-001…BE-004).
+RFC-001/002 не переоткрывались. RFC-004 не трогали. Product code не менялся.
 
-Vitest (2026-09-29 fix pass): `hearts.test.ts` + `hearts-charge.test.ts` + `learning-path.test.ts` + `fsrs.test.ts` → **4 files / 18 tests green**. Charge predicate: `shouldChargeHeartOnMiss` in `src/lib/hearts.ts` (used by `decrementHeartForMiss`).
+Vitest (2026-09-29 QA): `hearts.test.ts` + `hearts-charge.test.ts` + `learning-path.test.ts` + `fsrs.test.ts` → **4 files / 18 tests green**.
 
-**Backend notice (2026-09-29 ~21:00):** BE-005 → Ready for QA. `applyLessonMiss` / `decrementHeartForMiss` + LessonRunner miss path (charged from server).
-
-**Fix pass (2026-09-29):** Re-read confirmed BUG-001/002/003 already closed in UI/actions; shared charge helper + tests tightened; desks/cards updated.
+Browser (localhost:3000, already running): logged-in session; Today panel; due=0 → redirect to next lesson; first-pass miss −1 heart; completed replay miss no heart loss. Out-of-hearts / theory-only / empty practice / due>0 session not exercised (not reachable without draining hearts or thin/empty data).
 
 ---
 
@@ -54,7 +52,8 @@ Vitest (2026-09-29 fix pass): `hearts.test.ts` + `hearts-charge.test.ts` + `lear
 
 ## Наблюдения (не баги Ready-for-QA / вне очереди)
 
-- **FE-004 / FE-005 / BE-005:** Ready for QA (не Verified). FE-004 testids (`theory-complete-message`, `practice-empty-notice`, `learning-path`, `path-notice`) на месте.
-- **Маскот:** реальный набор — 5 mood в `BookCat` (`idle` | `correct` | `wrong` | `outOfHearts` | `cheer`).
-- **Звук:** `src/lib/sounds.ts` — browser autoplay reject не прогонялся в этом pass.
-- **Grounding unit tests:** `src/lib/ai/grounding.ts` — экспорт зеркала private `filterGroundedExercises` из book-processor.
+- **FE-004:** still Ready for QA — `learning-path` browser OK; theory-only complete + empty `cards` not live-reachable on current book (no thin chapter / empty practice). No BUG filed.
+- **FE-005 / BE-005:** Verified (browser first-pass + replay; vitest charge table). Due>0 session and out-of-hearts UI not exercised this pass.
+- **Маскот:** 5 mood в `BookCat` (`idle` | `correct` | `wrong` | `outOfHearts` | `cheer`); browser saw `idle` / `wrong`.
+- **Звук:** browser autoplay reject не прогонялся.
+- **BUG-001/002/003:** remain Fixed; not reopened.

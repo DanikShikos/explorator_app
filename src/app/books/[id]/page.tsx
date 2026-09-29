@@ -1,13 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import { LearningPath } from "@/components/book/LearningPath";
+import { LearningPath, type PathGateStatus } from "@/components/book/LearningPath";
 import { DatabaseSetupBanner } from "@/components/layout/database-setup-banner";
-import { ensureFullLearningPath } from "@/lib/ai/book-processor";
 import { checkAndRegenHearts } from "@/lib/hearts-store";
 import { getCurrentUserId } from "@/lib/current-user";
 import { getBookStudy, getLearningPath, isDatabaseConfigured } from "@/lib/data";
 import { isPathRecordId, summarizePath } from "@/lib/learning-path";
+
+function readPathStatus(book: Record<string, unknown>): PathGateStatus | undefined {
+  const raw = book.pathStatus ?? book.path_status;
+  if (raw === "pending" || raw === "approved" || raw === "rejected") {
+    return raw;
+  }
+  return undefined;
+}
 
 export default async function BookPage({ params }: { params: Promise<{ id: string }> }) {
   if (!isDatabaseConfigured()) {
@@ -23,24 +30,29 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
     notFound();
   }
 
+  // FE-006: read-only open — no ensureFullLearningPath / AI on SSR.
   const userId = await getCurrentUserId();
-  await ensureFullLearningPath(study.book.id);
   const [path, hearts] = await Promise.all([
     getLearningPath(study.book.id),
     checkAndRegenHearts(userId),
   ]);
-  const progress = summarizePath(path);
+  const pathStatus = readPathStatus(study.book as Record<string, unknown>);
+  const gate = pathStatus ?? (path.length > 0 ? "approved" : "pending");
+  const playable = gate === "approved" ? path : [];
+  const progress = summarizePath(playable);
   const chaptersOnPath =
-    path.length > 0
-      ? new Set(path.map((node) => node.chapterTitle)).size
+    playable.length > 0
+      ? new Set(playable.map((node) => node.chapterTitle)).size
       : 0;
   const totalChapters = study.chapters.length;
   const headerChapterLine =
-    path.length === 0
-      ? `${totalChapters} глав`
-      : chaptersOnPath >= totalChapters
-        ? `${totalChapters} глав · тропа ${progress.percent}%`
-        : `${chaptersOnPath} из ${totalChapters} глав на тропе · тропа ${progress.percent}%`;
+    gate !== "approved"
+      ? `${totalChapters} глав · тропа не готова`
+      : playable.length === 0
+        ? `${totalChapters} глав`
+        : chaptersOnPath >= totalChapters
+          ? `${totalChapters} глав · тропа ${progress.percent}%`
+          : `${chaptersOnPath} из ${totalChapters} глав на тропе · тропа ${progress.percent}%`;
 
   return (
     <div className="space-y-6">
@@ -56,7 +68,13 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
         </div>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight text-path-ink">{study.book.title}</h1>
         <p className="mt-1 text-muted-foreground">{study.book.author || "Автор не указан"}</p>
-        {progress.total === 0 ? (
+        {gate !== "approved" ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            {gate === "rejected"
+              ? "Тропа не прошла контроль — собери её ниже, когда будешь готов."
+              : "Тропа ещё не собрана. Один явный запуск ниже — без автосборки при каждом заходе."}
+          </p>
+        ) : progress.total === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">Собери тропу ниже — главы станут теорией и закреплением.</p>
         ) : (
           <div className="mt-4 space-y-2">
@@ -70,7 +88,12 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
           </div>
         )}
       </header>
-      <LearningPath bookId={study.book.id} nodes={path} hearts={hearts.hearts} />
+      <LearningPath
+        bookId={study.book.id}
+        nodes={path}
+        hearts={hearts.hearts}
+        pathStatus={pathStatus}
+      />
     </div>
   );
 }

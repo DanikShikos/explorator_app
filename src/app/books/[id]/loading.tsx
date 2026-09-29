@@ -4,9 +4,9 @@ export default function BookLoading() {
   return (
     <PathNotice
       mood="idle"
-      caption="Читаю книгу"
-      title="Собираю тропу"
-      description="Секунда — котик раскладывает главы в шаги."
+      caption="Открываю"
+      title="Открываю книгу"
+      description="Секунда — котик листает страницы. Тропа не собирается заново при каждом заходе."
     />
   );
 }

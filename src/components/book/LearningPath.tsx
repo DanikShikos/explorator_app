@@ -24,6 +24,9 @@ export type PathNode = {
   score: number | null;
 };
 
+/** Book-level gate from Backend (BE-006/007) — not a PathNode field. */
+export type PathGateStatus = "pending" | "approved" | "rejected";
+
 const labels: Record<string, string> = {
   summary_read: "Теория",
   quiz_sprint: "Спринт",
@@ -44,26 +47,43 @@ function isTheory(nodeType: string) {
   return nodeType === "summary_read";
 }
 
+function resolveGateStatus(
+  pathStatus: PathGateStatus | undefined,
+  nodes: PathNode[],
+): PathGateStatus {
+  if (pathStatus) return pathStatus;
+  return nodes.length > 0 ? "approved" : "pending";
+}
+
 export function LearningPath({
   bookId,
   nodes,
   hearts,
+  pathStatus,
 }: {
   bookId: string;
   nodes: PathNode[];
   hearts: number;
+  /** Availability from Backend; omit → infer (nodes → approved, else pending). */
+  pathStatus?: PathGateStatus;
 }) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
+  const gate = resolveGateStatus(pathStatus, nodes);
+  const playable = gate === "approved" ? nodes : [];
   const [selected, setSelected] = useState<string | null>(
-    () => nodes.find((node) => node.status === "available")?.id ?? nodes.find((node) => node.status !== "locked")?.id ?? null,
+    () =>
+      playable.find((node) => node.status === "available")?.id ??
+      playable.find((node) => node.status !== "locked")?.id ??
+      null,
   );
   const [pending, startTransition] = useTransition();
-  const active = nodes.find((node) => node.id === selected) ?? null;
-  const currentAvailable = nodes.find((node) => node.status === "available");
-  const progress = summarizePath(nodes);
+  const active = playable.find((node) => node.id === selected) ?? null;
+  const currentAvailable = playable.find((node) => node.status === "available");
+  const progress = summarizePath(playable);
 
   function build() {
+    if (gate === "approved") return;
     setMessage(null);
     startTransition(async () => {
       const result = await buildLearningPath(bookId);
@@ -75,31 +95,47 @@ export function LearningPath({
     });
   }
 
-  if (nodes.length === 0) {
+  if (gate === "pending" || gate === "rejected") {
+    const failed = gate === "rejected" || Boolean(message);
+    const gateTestId = gate === "rejected" ? "path-gate-rejected" : "path-gate-pending";
     return (
-      <PathNotice
-        mood={message ? "wrong" : "idle"}
-        caption={message ? "Не собралось" : "Готов читать вместе"}
-        title="Твоя учебная тропа"
-        description="Сначала короткие карточки теории, потом закрепление. Нажми — и котик соберёт путь по главам."
-        tone={message ? "alert" : "path"}
-      >
-        <Button
-          className="h-12 rounded-2xl bg-path px-6 text-base font-semibold text-path-foreground hover:bg-path/90"
-          type="button"
-          data-testid="build-path-button"
-          onClick={build}
-          disabled={pending}
+      <div data-testid={gateTestId}>
+        <PathNotice
+          mood={failed ? "wrong" : "idle"}
+          caption={failed ? "Не собралось" : "Подождём"}
+          title={gate === "rejected" ? "Тропа не прошла контроль" : "Тропа ещё не готова"}
+          description={
+            gate === "rejected"
+              ? "Контроль обучения не пройден — шаги пока недоступны. Можно собрать тропу заново."
+              : "Пока нет готовой учебной тропы. Собери её один раз — без автозапуска при каждом заходе."
+          }
+          tone={failed ? "alert" : "path"}
         >
-          {pending ? "Собираю тропу…" : "Собрать тропу"}
-        </Button>
-        {message ? <p className="mt-3 text-sm text-destructive">{message}</p> : null}
-      </PathNotice>
+          <Button
+            className="h-12 rounded-2xl bg-path px-6 text-base font-semibold text-path-foreground hover:bg-path/90"
+            type="button"
+            data-testid="build-path-button"
+            onClick={build}
+            disabled={pending}
+          >
+            {pending ? "Собираю тропу…" : "Собрать тропу"}
+          </Button>
+          {message ? <p className="mt-3 text-sm text-destructive">{message}</p> : null}
+        </PathNotice>
+      </div>
     );
   }
 
   return (
-    <section id="learning-path" data-testid="learning-path" className="space-y-5">
+    <section
+      id="learning-path"
+      data-testid="learning-path"
+      data-path-gate="ready"
+      className="space-y-5"
+    >
+      <div data-testid="path-gate-ready" className="sr-only">
+        Тропа доступна
+      </div>
       <div className="flex items-end justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold text-path-ink">Учебная тропа</h2>
@@ -113,7 +149,7 @@ export function LearningPath({
       </div>
 
       <div className="relative mx-auto flex max-w-md flex-col items-center pb-[calc(16rem+env(safe-area-inset-bottom))]">
-        {nodes.map((node, index) => {
+        {playable.map((node, index) => {
           const done = isPathDone(node.status);
           const locked = node.status === "locked";
           const available = node.status === "available";
