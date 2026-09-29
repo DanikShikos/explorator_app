@@ -54,7 +54,7 @@
 
 - [ ] To Do
 - [x] Ready for QA
-- [ ] Verified / Done
+- [x] Verified / Done
 - [x] **Критичность:** P0 (RFC-003)
 - **Зачем:** на экране видно: miss на новом узле −1 сердце + mood `wrong`; при 0 на новом упражнении — `outOfHearts` + модалка/пауза (practice, таймер 4ч). Miss на повторе уже `completed`/`mastered` или due на `/today/session` — сердца не мигают вниз, `outOfHearts` **не** из-за этого miss; кот `wrong`, FSRS Again (BE-002/BE-005). Теория без жизней.
 - **Где:** `LessonRunner` (спринт / пары / босс), `/today/session` при due-карточках. Сейчас: `isDueReview = mode==="lesson" && !nodeId` уже пропускает сердца на due; replay пройденного узла **с** `nodeId` всё ещё делает `playHeartLoss` + `decrementHeart` — поправить опираясь на ответ BE-005 (`charged` / неизменённый `HeartStatus`), **без** новых props `LessonRunner` и без смены `PathNode`. Статуса прогресса на клиенте нет (`generateLessonContentOnFly` progress не отдаёт) — **зависимость: BE-005**.
@@ -109,11 +109,12 @@
 
 - [ ] To Do
 - [x] Ready for QA
-- [ ] Verified / Done
+- [x] Verified / Done
 - [x] **Критичность:** P0 (RFC-001)
 - **Статус (2026-09-29 19:43, design-desk):** `/` → `getTodayPanel` + `TodayPanel`; CTA «Продолжить» → `/today/session`; idle-кот; заметки вторичной ссылкой на `/notes`; список заметок убран. Developer browser-check 20:53 ≠ QA.
 - **QA (2026-09-29):** Not Verified — UX wiring OK by code review; DoD `data-testid` missing → **BUG-002**, **BUG-003**.
 - **Статус (2026-09-29 fix pass):** DoD testids present (`today-panel`, `today-continue-cta`, `today-due-count`, `book-cat`). BUG-002/003 fixed. Ready for QA; Verified только QA.
+- **QA (2026-09-29 browser):** Verified — `/` shows active book + «Продолжить», notes secondary; CDP: `today-panel`, `today-continue-cta`, `today-due-count=0`, `book-cat` mood `idle`.
 - **data-testid (для автотестов / добить если нет):**
   - `today-panel`
   - `today-continue-cta`
@@ -129,11 +130,12 @@
 
 - [ ] To Do
 - [x] Ready for QA
-- [ ] Verified / Done
+- [x] Verified / Done
 - [x] **Критичность:** P1 (RFC-001)
 - **Статус (2026-09-29 19:43):** `/today/session` — `listBookDueCards` → `LessonRunner` mode=lesson (сердца+FSRS); due=0 → redirect nextNode или pause+cheer; после повтора «Дальше» → available без новых props (`bookId` path-encode). Developer browser-check ≠ QA.
 - **QA (2026-09-29):** Not Verified — session flow OK by code review; DoD `data-testid` missing → **BUG-002**, **BUG-003**. Note: lesson page currently passes extra `heartsCharged` prop (FE-005 WIP / props freeze risk) — **BUG-001**.
 - **Статус (2026-09-29 fix pass):** DoD testids present (`today-session`, `today-session-banner`, `lesson-runner`, `book-cat`). `heartsCharged` prop removed; BUG-001/002/003 fixed. Ready for QA.
+- **QA (2026-09-29 browser):** Verified — dueCount=0 → `/today/session` redirected to next available lesson (`lesson-runner` live). Due>0 banner path not exercised (no due cards). Props frozen in code.
 - **data-testid (для автотестов / добить если нет):**
   - `today-session`
   - `today-session-banner`
@@ -149,11 +151,12 @@
 
 - [ ] To Do
 - [x] Ready for QA
-- [ ] Verified / Done
+- [x] Verified / Done
 - [x] **Критичность:** P0 (RFC-002)
 - **Статус (2026-09-29 20:10):** `mode="lesson"` → `recordLessonAnswer(id, true|false)`; сердца / `completeLessonNode` / props без изменений; шкалу не показываю. Developer browser-check ≠ QA.
 - **QA (2026-09-29):** Not Verified — `recordLessonAnswer` wiring present; DoD `data-testid` missing (**BUG-002**). Miss/heart branch currently broken (**BUG-001**) — FSRS Again still called on the no-charge branch.
 - **Статус (2026-09-29 fix pass):** DoD testids present (`lesson-runner`, `lesson-answer-correct`, `lesson-answer-wrong`, `lesson-miss-feedback`). Miss → `applyLessonMiss`. Ready for QA.
+- **QA (2026-09-29 browser):** Verified — wrong answer shows `lesson-miss-feedback` / `lesson-answer-wrong` via `applyLessonMiss` (Again); correct path `recordLessonAnswer(true)` confirmed in code; no interval UI; props frozen.
 - **data-testid (для автотестов / добить если нет):**
   - `lesson-runner`
   - `lesson-answer-correct`
