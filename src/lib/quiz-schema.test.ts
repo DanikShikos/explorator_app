@@ -45,11 +45,89 @@ describe("generatedQuizSchema", () => {
       }],
     });
 
-    expect(quiz.questions[0]).toMatchObject({
+    expect(quiz).not.toBeNull();
+    expect(quiz!.questions[0]).toMatchObject({
       question: "What is 2 + 2?",
       options: ["3", "4"],
       answer: "4",
       explanation: "None",
     });
+  });
+
+  it("rejects truncated / empty AI payloads without throwing", () => {
+    expect(generatedQuizSchema.safeParse(null).success).toBe(false);
+    expect(generatedQuizSchema.safeParse({}).success).toBe(false);
+    expect(generatedQuizSchema.safeParse({ questions: [] }).success).toBe(false);
+    expect(generatedQuizSchema.safeParse({ questions: "truncated" }).success).toBe(false);
+  });
+
+  it("rejects open-ended answers longer than four words", () => {
+    const question = {
+      ...validQuestion,
+      type: "open_ended" as const,
+      options: null,
+      answer: "one two three four five",
+    };
+    expect(generatedQuizSchema.safeParse({ questions: [question] }).success).toBe(false);
+  });
+
+  it("rejects broken JSON fixture strings without throwing (safeParse)", () => {
+    const fixtures = [
+      "",
+      '{"questions":[{"type":"multiple_choice","question":"Q?","options":["3","4"],"answer":',
+      "```json\n{\"questions\":[]}\n```",
+      '{"questions":[{"type":"multiple_choice","question":"Q?","options":["3","4",],"answer":"4",}],}',
+    ];
+    for (const raw of fixtures) {
+      let value: unknown;
+      try {
+        value = JSON.parse(raw);
+      } catch {
+        expect(generatedQuizSchema.safeParse(undefined).success).toBe(false);
+        continue;
+      }
+      expect(generatedQuizSchema.safeParse(value).success).toBe(false);
+    }
+  });
+
+  it("rejects wrong types and empty questions; strips extra fields on valid shapes", () => {
+    expect(
+      generatedQuizSchema.safeParse({
+        questions: [{ ...validQuestion, type: "true_false" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      generatedQuizSchema.safeParse({
+        questions: [{ ...validQuestion, options: "not-an-array" }],
+      }).success,
+    ).toBe(false);
+
+    const withExtras = {
+      questions: [{ ...validQuestion, modelNote: "ignore", confidence: 0.9 }],
+      meta: { provider: "fake" },
+    };
+    const parsed = generatedQuizSchema.safeParse(withExtras);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data).not.toHaveProperty("meta");
+      expect(parsed.data.questions[0]).not.toHaveProperty("modelNote");
+    }
+  });
+
+  it("rejects multiple_choice whose answer is not in options", () => {
+    const hallucinated = {
+      ...validQuestion,
+      options: ["3", "4"],
+      answer: "zebra",
+    };
+    expect(generatedQuizSchema.safeParse({ questions: [hallucinated] }).success).toBe(false);
+  });
+
+  it("sanitizeGeneratedQuiz returns null when null-byte-only text collapses to empty", () => {
+    expect(
+      sanitizeGeneratedQuiz({
+        questions: [{ ...validQuestion, question: "\0", answer: "4" }],
+      }),
+    ).toBeNull();
   });
 });
