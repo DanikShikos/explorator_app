@@ -24,7 +24,17 @@ export default async function NotePage({ params }: { params: Promise<{ id: strin
         </Link>{" "}
         / {note.title}
       </p>
-      <NoteEditor mode="edit" note={note} cardCount={cardCount} />
+      <NoteEditor
+        mode="edit"
+        note={{
+          id: note.id,
+          title: note.title,
+          content: note.content,
+          sourceKind: note.sourceKind,
+          reviewedAt: note.reviewedAt,
+        }}
+        cardCount={cardCount}
+      />
     </div>
   );
 }
