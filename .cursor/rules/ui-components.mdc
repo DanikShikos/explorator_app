@@ -1,0 +1,52 @@
+---
+description: Правила Shadcn UI, Tailwind CSS и Framer Motion
+globs: "src/components/**/*.{ts,tsx},src/app/**/*.tsx"
+alwaysApply: false
+---
+
+# UI — Shadcn / Tailwind / Motion
+
+## Shadcn UI
+
+- Примитивы только в `src/components/ui/` (стиль **new-york**, `components.json`)
+- Добавлять компоненты через `npx shadcn@latest add <name>`, не копировать чужие форки
+- Составные экраны — в `src/components/<feature>/` поверх ui-примитивов
+- Классы мержить через `cn()` из `@/lib/utils`
+- Иконки: `lucide-react`
+
+## Tailwind
+
+- Утилитарные классы; токены темы через CSS variables (`bg-background`, `text-muted-foreground`, `border-border`)
+- Не хардкодить цвета, если есть семантический токен
+- Адаптив: mobile-first (`md:`, `sm:`)
+- Глобальные токены и `@theme` — только в `src/app/globals.css`
+
+## Client UI
+
+- Интерактивные виджеты (`NoteEditor`, `ReviewSession`, command palette) — `"use client"`
+- Формы: Server Actions через `action={...}` / `useActionState`, не обязательно отдельный REST CRUD
+- Доступность: `DialogTitle`, `sr-only` где нужно; фокус и клавиатура для Ctrl+K
+
+## Framer Motion
+
+- Подключать только в client-компонентах
+- Анимации для иерархии и появления (страницы, карточки, ответы), не для декоративного шума
+- Предпочитать короткие `transition` (opacity / y); избегать бесконечных loop без явной UX-цели
+- Не анимировать layout целых деревьев Server Components — оборачивать в client-обёртку
+
+```tsx
+"use client";
+import { motion } from "framer-motion";
+
+<motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+  {children}
+</motion.div>
+```
+
+## Антипаттерны
+
+```tsx
+// ❌ Дублировать Button своими div + Tailwind вместо ui/button
+// ❌ Импортировать framer-motion в RSC без "use client"
+// ✅ Button из @/components/ui/button + motion только в client-обёртке
+```

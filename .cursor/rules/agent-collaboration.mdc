@@ -1,0 +1,50 @@
+---
+description: Живой канал Developer ↔ аналитик и Design ↔ Backend — читать на каждом шаге
+alwaysApply: true
+---
+
+# Сотрудничество агентов (Explorator)
+
+Агенты не в одном чате — канал только через файлы.
+
+## Порядок (диаграмма)
+
+1. **Developer (Product)** — intent в `docs/developer-desk.md`.
+2. **Marketer (Growth)** — growth intent в `docs/marketer-desk.md` (OG/share/pixels только из «Задача аналитику»).
+3. **Analysis** — читает оба стола на каждом шаге, кладёт карточки; код не пишет.
+4–6. Параллельно после карточек: **AI Prompt Engineer** (`ai-prompts.md`), **Backend** (`backend-tasks.md`), **DevOpsSec** (`devops-security.md`).
+7. **Frontend/Design** (`frontend-tasks.md`) — только когда AI/BE/DO той же фичи Ready for QA или Verified, либо аналитик явно написал «для этой фичи карточки AI/DO нет». Не стартовать FE при To Do-зависимости.
+8. **QA** — только Verified / Done.
+
+- **Developer** ставит задачу аналитику и отвечает на вопросы: `docs/developer-desk.md`.
+- **Marketer** ставит маркетинговые задачи (OG, share cards, SEO, pixels) в `docs/marketer-desk.md`. Аналитик раскладывает их на `.cursor/tasks/backend-tasks.md` и `.cursor/tasks/frontend-tasks.md` только после заполненной «Задача аналитику».
+- **Аналитик** спрашивает Developer в `docs/analyst-desk.md` и кладёт атомные задачи в `.cursor/tasks/backend-tasks.md`, `.cursor/tasks/frontend-tasks.md`, `.cursor/tasks/ai-prompts.md` и `.cursor/tasks/devops-security.md`.
+- **Design** и **Backend** строят продукт и пишут свои столы. Чужие столы не переписывают.
+- **AI Prompt Engineer** берёт работу только из `ai-prompts.md` (prompts / Zod LLM / invalid JSON). **DevOpsSec** — только из `devops-security.md` (миграции / RLS / rate-limit / env names).
+
+## На каждом шаге (не только в начале)
+
+1. Developer и аналитик читают `docs/developer-desk.md` и `docs/analyst-desk.md`. После шага каждый обновляет **свой** стол.
+1a. Backend берёт работу из `.cursor/tasks/backend-tasks.md`. Design/Frontend — из `.cursor/tasks/frontend-tasks.md`. AI Prompt Engineer — из `.cursor/tasks/ai-prompts.md`. DevOpsSec — из `.cursor/tasks/devops-security.md`. Чужие карточки не стирать: отмечать `[x]`.
+1b. Аналитик на каждом шаге читает `docs/marketer-desk.md`; карточки по маркетингу — только из «Задача аналитику» Marketer.
+2. Аналитик, Design и Backend читают `docs/design-desk.md`.
+3. Если меняешь схему, actions, AI, статусы узлов — допиши `docs/backend-desk.md` **сразу**, не после всей задачи.
+4. Сводка и DoD: `docs/agent-handoff.md`. UX: `.cursor/rules/design-book-learning-path.mdc`.
+
+Пока в `docs/analyst-desk.md` есть вопрос без ответа в `docs/developer-desk.md`, аналитик не ставит эту задачу Design и Backend.
+
+## Нельзя без записи в desk
+
+- Менять форму `PathNode` или props `LessonRunner`.
+- Убирать тропу с `/books/[id]` или ставить `BookStudy` выше неё.
+- Хардкодить цвета вместо токенов темы на экранах книги/урока.
+
+## Кто что делает
+
+- **Developer:** задача аналитику и ответы на вопросы. Код продукта не пишет через эти столы.
+- **Marketer:** постановки в `docs/marketer-desk.md` (OG, share, SEO, pixels). Код не пишет.
+- **Аналитик:** перевод запроса (Developer и Marketer) в карточки BE/FE/ai-prompts/devops-security. Код не пишет.
+- **Backend:** парсеры, разбор книги, `buildLearningPath`, уроки, сердца, прогресс (не prompt-схемы LLM и не миграции/RLS — см. специалистов).
+- **Design + Frontend:** иерархия экранов, визуал, контракт UI, empty/error states и код экранов: `src/components/**`, `src/app/**/*.tsx`, стили и клиентское состояние. Данные, actions, схему и AI не меняет — берёт готовые props и пишет, если контракт не сходится.
+- **AI Prompt Engineer:** system prompts, Zod/JSON Schema для LLM, drop/retry invalid JSON.
+- **DevOpsSec:** безопасные Drizzle-миграции, RLS intent, rate limits, env names.
