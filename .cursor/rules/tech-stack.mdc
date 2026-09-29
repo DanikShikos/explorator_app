@@ -1,0 +1,46 @@
+---
+description: Базовые правила Next.js 15, RSC и TypeScript для Explorator
+globs: "**/*.{ts,tsx}"
+alwaysApply: true
+---
+
+# Tech Stack — Next.js 15 / RSC / TypeScript
+
+## Стек
+
+- Next.js 15 App Router, React 19, TypeScript (`strict: true`)
+- Импорты только через alias `@/*` → `src/*`
+- Стили: Tailwind CSS v4 + CSS variables в `src/app/globals.css`
+
+## Server vs Client
+
+- По умолчанию — Server Components (без `"use client"`)
+- `"use client"` только если нужны: hooks, browser APIs, обработка событий, Framer Motion
+- Данные и мутации: Server Actions в `src/app/actions/*` или Route Handlers в `src/app/api/*`
+- Не импортировать серверный код (`drizzle`, `postgres`, секреты) в client-компоненты
+
+## TypeScript
+
+- Явные типы для публичных API и props; избегать `any`
+- Для строк БД использовать `typeof table.$inferSelect` / `$inferInsert`
+- Параметры динамических страниц: `params: Promise<{ id: string }>` (Next 15)
+
+## Структура
+
+```
+src/app/          # routes, layouts, actions, api
+src/components/   # UI и feature-компоненты
+src/db/           # Drizzle schema + клиент
+src/lib/          # утилиты, FSRS, Zod-схемы
+```
+
+## Антипаттерны
+
+```tsx
+// ❌ Client-компонент тянет БД
+"use client";
+import { getDb } from "@/db";
+
+// ✅ Данные на сервере, UI на клиенте
+// page.tsx (RSC) → передаёт props → NoteEditor (client)
+```

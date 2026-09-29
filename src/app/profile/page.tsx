@@ -1,8 +1,12 @@
 import { Flame, LockKeyhole, NotebookPen, Sparkles, Trophy } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { signOut, updatePassword } from "@/app/actions/auth";
 import { saveReminder } from "@/app/actions/gamification";
+import { AuthForm } from "@/components/auth/auth-form";
 import { DatabaseSetupBanner } from "@/components/layout/database-setup-banner";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { displayName, getCurrentUser } from "@/lib/current-user";
 import { getProfileData, isDatabaseConfigured } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -16,33 +20,61 @@ function progressForLevel(xp: number, level: number) {
   return Math.min(100, Math.round(((xp - currentFloor) / (nextFloor - currentFloor)) * 100));
 }
 
+function initials(name: string) {
+  const parts = name.split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "E") + (parts[1]?.[0] ?? "")).toUpperCase();
+}
+
 export default async function ProfilePage() {
   if (!isDatabaseConfigured()) {
     return <DatabaseSetupBanner />;
   }
 
+  const user = await getCurrentUser();
+  const name = displayName(user);
   const profile = await getProfileData();
   const { stats } = profile;
   const levelProgress = progressForLevel(stats.xp, stats.level);
   const dailyProgress = Math.min(100, Math.round((profile.attempts.todayXp / stats.dailyGoalXp) * 100));
-  const userLabel = stats.userId.slice(-6).toUpperCase();
 
   return (
     <div className="space-y-8">
       <header>
         <p className="text-sm text-muted-foreground">Личный кабинет</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">Твой прогресс</h1>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight">{name}</h1>
       </header>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Аккаунт</CardTitle>
+          <CardDescription>{user.email}. Книги, заметки и очки хранятся только в этом кабинете.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-6 md:grid-cols-[1fr_auto] md:items-start">
+          <div className="max-w-sm space-y-3">
+            <p className="text-sm font-medium">Сменить пароль</p>
+            <AuthForm
+              action={updatePassword}
+              submitLabel="Обновить пароль"
+              fields={["password", "confirm"]}
+              passwordAutocomplete="new-password"
+              stay
+            />
+          </div>
+          <form action={signOut}>
+            <Button type="submit" variant="outline">Выйти</Button>
+          </form>
+        </CardContent>
+      </Card>
 
       <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <Card className="overflow-hidden border-primary/20 bg-gradient-to-br from-primary/10 via-card to-card">
           <CardHeader className="flex-row items-start justify-between space-y-0">
             <div className="flex items-center gap-3">
               <div className="flex size-14 items-center justify-center rounded-full bg-primary text-xl font-bold text-primary-foreground">
-                EX
+                {initials(name)}
               </div>
               <div>
-                <CardDescription>Исследователь #{userLabel}</CardDescription>
+                <CardDescription>{user.email}</CardDescription>
                 <CardTitle className="mt-1 text-2xl">Уровень {stats.level}</CardTitle>
               </div>
             </div>

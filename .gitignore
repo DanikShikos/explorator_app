@@ -42,3 +42,7 @@ drizzle/*.sql
 
 .npm-cache/
 /supabase/.temp/
+
+# MCP with DB credentials
+.cursor/mcp.json
+

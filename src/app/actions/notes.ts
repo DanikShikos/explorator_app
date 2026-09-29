@@ -12,7 +12,7 @@ import { removeNullBytes } from "@/lib/utils";
 export async function createNote(formData: FormData) {
   const title = removeNullBytes(String(formData.get("title") ?? "")).trim() || "Без названия";
   const content = removeNullBytes(String(formData.get("content") ?? ""));
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   const [note] = await getDb()
     .insert(notes)
@@ -29,7 +29,7 @@ export async function updateNote(formData: FormData) {
   const id = removeNullBytes(String(formData.get("id") ?? ""));
   const title = removeNullBytes(String(formData.get("title") ?? "")).trim() || "Без названия";
   const content = removeNullBytes(String(formData.get("content") ?? ""));
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   await getDb()
     .update(notes)
@@ -43,7 +43,7 @@ export async function updateNote(formData: FormData) {
 
 export async function deleteNote(formData: FormData) {
   const id = removeNullBytes(String(formData.get("id") ?? ""));
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   await getDb()
     .delete(notes)

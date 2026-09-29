@@ -34,4 +34,9 @@ export function scheduleReview(card: Card, grade: Grade, now = new Date()) {
   return scheduler.next(card, now, grade);
 }
 
+/** Lesson sprint/pairs/boss: correct → Good, wrong → Again (same ratings as note review). */
+export function scheduleLessonAnswer(card: Card, correct: boolean, now = new Date()) {
+  return scheduleReview(card, correct ? ratingLabels.good : ratingLabels.again, now);
+}
+
 export { Rating };

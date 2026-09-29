@@ -8,7 +8,7 @@ import { getCurrentUserId } from "@/lib/current-user";
 import { removeNullBytes } from "@/lib/utils";
 
 export async function saveReminder(formData: FormData) {
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
   const reminderTime = removeNullBytes(String(formData.get("reminderTime") ?? "20:00"));
   const daysOfWeek = formData.getAll("daysOfWeek")
     .map((value) => Number(removeNullBytes(String(value))))

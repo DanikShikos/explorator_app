@@ -1,10 +1,9 @@
 "use server";
 
-import { generateObject } from "ai";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/db";
-import { openrouter } from "@/lib/ai";
+import { generateObjectWithCredits, hasAiProvider } from "@/lib/ai";
 import { notes, quizCards, reviewLogs } from "@/db/schema";
 import { getCurrentUserId } from "@/lib/current-user";
 import { newFsrsCard, ratingLabels, scheduleReview, toFsrsCard, type RatingKey } from "@/lib/fsrs";
@@ -14,7 +13,7 @@ import { removeNullBytes } from "@/lib/utils";
 
 export async function generateQuestionsForNote(noteId: string) {
   const cleanNoteId = removeNullBytes(noteId);
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
   const [note] = await getDb()
     .select()
     .from(notes)
@@ -29,20 +28,20 @@ export async function generateQuestionsForNote(noteId: string) {
     return { ok: false as const, error: "Сначала напишите чуть больше текста в заметке." };
   }
 
-  if (!process.env.OPENROUTER_API_KEY) {
-    return { ok: false as const, error: "Нет OPENROUTER_API_KEY в .env.local" };
+  if (!hasAiProvider()) {
+    return { ok: false as const, error: "Нет ключа Gemini, Groq или OpenRouter в .env.local" };
   }
 
   let object;
   try {
-    ({ object } = await generateObject({
-      model: openrouter("openai/gpt-4o"),
+    ({ object } = await generateObjectWithCredits({
       schema: generatedQuizSchema,
       maxOutputTokens: 3500,
       prompt: [
         "Сгенерируй вопросы викторины по заметке на языке заметки.",
-        "Смешай вопросы с множественным выбором и открытые.",
-        "Для multiple_choice в answer укажи точный текст правильного варианта из options.",
+        "Смешай вопросы с выбором варианта и короткие открытые.",
+        "Открытый ответ — одно–три слова: термин, число или короткая формула, не предложение.",
+        "Для multiple_choice варианты тоже короткие, до 8 слов. В answer укажи точный текст правильного варианта.",
         "Для open_ended укажи options: null; если объяснение не нужно, укажи explanation: null.",
         `Заголовок: ${note.title}`,
         `Содержание:\n${note.content}`,
@@ -51,9 +50,9 @@ export async function generateQuestionsForNote(noteId: string) {
   } catch (error) {
     const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
     if (message.includes("no credits") || message.includes("credits") || message.includes("billing") || message.includes("quota")) {
-      return { ok: false as const, error: "У провайдера закончились кредиты. Проверьте баланс OpenRouter или замените OPENROUTER_API_KEY в .env.local." };
+      return { ok: false as const, error: "У Gemini, Groq и OpenRouter сейчас нет доступного лимита." };
     }
-    return { ok: false as const, error: "Не удалось сгенерировать вопросы. Проверьте настройки OpenAI и попробуйте ещё раз." };
+    return { ok: false as const, error: "Не удалось сгенерировать вопросы. Попробуйте ещё раз." };
   }
 
   const cleanQuiz = sanitizeGeneratedQuiz(object);
@@ -92,7 +91,7 @@ export async function rateCard(cardId: string, ratingKey: RatingKey) {
     return { ok: false as const, error: "Оценка неизвестна" };
   }
   const rating = ratingLabels[cleanRatingKey as RatingKey];
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
   const [card] = await getDb()
     .select()
     .from(quizCards)
@@ -145,7 +144,7 @@ export async function completeQuizAttempt({
   correctAnswers: number;
 }) {
   const cleanNoteId = noteId === undefined ? undefined : removeNullBytes(noteId);
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
   const result = await recordQuizAttempt({
     userId,
     noteId: cleanNoteId,
@@ -155,4 +154,23 @@ export async function completeQuizAttempt({
   revalidatePath("/");
   revalidatePath("/review");
   return { ok: true as const, ...result };
+}
+
+export async function clearNoteQuiz(noteId: string) {
+  const cleanNoteId = removeNullBytes(noteId);
+  const userId = await getCurrentUserId();
+  await getDb()
+    .delete(quizCards)
+    .where(and(eq(quizCards.noteId, cleanNoteId), eq(quizCards.userId, userId)));
+  revalidatePath("/");
+  revalidatePath("/review");
+  revalidatePath(`/notes/${cleanNoteId}`);
+}
+
+export async function clearReviewCards() {
+  const userId = await getCurrentUserId();
+  await getDb().delete(quizCards).where(eq(quizCards.userId, userId));
+  revalidatePath("/");
+  revalidatePath("/review");
+  revalidatePath("/notes");
 }
